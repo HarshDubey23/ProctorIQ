@@ -1,0 +1,6 @@
+{
+  "absent": 0,
+  "distracted": 1,
+  "drowsy": 2,
+  "focused": 3
+}

@@ -1,0 +1,14 @@
+fastapi==0.138.2
+uvicorn[standard]==0.49.0
+pydantic==2.13.4
+opencv-python-headless==4.13.0.92
+filterpy==1.4.5
+onnxruntime==1.27.0
+reportlab==5.0.0
+slowapi==0.1.10
+pydantic-settings==2.14.2
+loguru==0.7.3
+python-dotenv==1.2.2
+numpy>=2.0.0
+pytest==9.1.1
+pytest-asyncio==1.4.0
