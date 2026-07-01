@@ -172,6 +172,18 @@ class TestAttentionScore:
         assert "drowsy" not in result.event_counts
         assert "tab_switch" not in result.event_counts
 
+    def test_tab_switch_reduces_score_and_appears_in_report(self) -> None:
+        events = [FlagEvent(event_type="tab_switch", timestamp_s=5.0)]
+        result = compute_attention_score(events, duration_s=10.0)
+        assert result.score == pytest.approx(-0.2)
+        assert result.event_counts["tab_switch"] == 1
+
+    def test_window_blur_reduces_score_and_appears_in_report(self) -> None:
+        events = [FlagEvent(event_type="window_blur", timestamp_s=5.0)]
+        result = compute_attention_score(events, duration_s=10.0)
+        assert result.score == pytest.approx(-0.1)
+        assert result.event_counts["window_blur"] == 1
+
     def test_unknown_event_type_ignored(self) -> None:
         events = [FlagEvent(event_type="unknown_type", timestamp_s=5.0)]
         result = compute_attention_score(events, duration_s=10.0)

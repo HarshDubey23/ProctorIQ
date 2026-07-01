@@ -43,7 +43,7 @@ export function useExamSession() {
   const eventsRef = useRef<ProctorEvent[]>([]);
   const answersRef = useRef<ExamAnswer[]>(answers);
   answersRef.current = answers;
-  const { connect: wsConnect, disconnect: wsDisconnect, tick: wsTick } = useProctoringSocket();
+  const { connect: wsConnect, disconnect: wsDisconnect, tick: wsTick, sendFlag: wsSendFlag } = useProctoringSocket();
 
   const clearTimers = useCallback(() => {
     if (timerRef.current) {
@@ -205,11 +205,13 @@ export function useExamSession() {
     const onVisibility = () => {
       if (document.hidden) {
         addEvent('tab_switch', 'Tab became hidden');
+        wsSendFlag('tab_switch', null, { details: 'Tab became hidden' });
       }
     };
 
     const onBlur = () => {
       addEvent('window_blur', 'Window lost focus');
+      wsSendFlag('window_blur', null, { details: 'Window lost focus' });
     };
 
     document.addEventListener('visibilitychange', onVisibility);

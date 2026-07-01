@@ -11,6 +11,11 @@ PENALTIES: dict[str, float] = {
     "drowsy": -1.0,
     "multi_face": -3.0,
     "tab_switch": -2.0,
+    # Window blur is slightly less severe than a full tab switch —
+    # it may be triggered by alt-tab to another window while the
+    # exam tab remains visible, which is less conclusive of intent
+    # to look up answers than a tab switch.
+    "window_blur": -1.0,
 }
 
 LOW_THRESHOLD: float = -0.5
