@@ -13,20 +13,22 @@ interface TimelineScrubberProps {
 
 const WIDTH = 1200;
 const HEIGHT = 48;
+const SPROCKET_R = 3;
+const SPROCKET_GAP = 8;
 
 const EVENT_COLORS: Record<string, string> = {
-  focused: '#34D399',
-  distracted: '#FB923C',
-  absent: '#A78BFA',
-  drowsy: '#34D399',
-  multi: '#F472B6',
-  tab_switch: '#FCD34D',
-  window_blur: '#FCD34D',
-  gaze_away: '#FB923C',
+  focused: '#0E6B5C',
+  distracted: '#B8763A',
+  absent: '#A63D2F',
+  drowsy: '#6B5178',
+  multi: '#A63D2F',
+  tab_switch: '#B8763A',
+  window_blur: '#B8763A',
+  gaze_away: '#B8763A',
 };
 
 function eventColor(eventType: string): string {
-  return EVENT_COLORS[eventType] ?? '#64748B';
+  return EVENT_COLORS[eventType] ?? '#9CA3A5';
 }
 
 export function TimelineScrubber({ durationSec, events, onScrub }: TimelineScrubberProps) {
@@ -79,12 +81,37 @@ export function TimelineScrubber({ durationSec, events, onScrub }: TimelineScrub
       <svg
         ref={svgRef}
         width={WIDTH}
-        height={HEIGHT}
+        height={HEIGHT + SPROCKET_R * 2 + 4}
         className="cursor-pointer overflow-visible"
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoveredSecond(null)}
         onClick={handleClick}
       >
+        {/* Sprocket holes — top edge */}
+        {Array.from({ length: Math.floor(WIDTH / SPROCKET_GAP) }, (_, i) => (
+          <rect
+            key={`top-${i}`}
+            x={i * SPROCKET_GAP}
+            y={1}
+            width={SPROCKET_R}
+            height={SPROCKET_R}
+            rx={1}
+            fill="var(--hairline-strong)"
+          />
+        ))}
+        {/* Sprocket holes — bottom edge */}
+        {Array.from({ length: Math.floor(WIDTH / SPROCKET_GAP) }, (_, i) => (
+          <rect
+            key={`bot-${i}`}
+            x={i * SPROCKET_GAP}
+            y={HEIGHT + 2}
+            width={SPROCKET_R}
+            height={SPROCKET_R}
+            rx={1}
+            fill="var(--hairline-strong)"
+          />
+        ))}
+        {/* Filmstrip segments */}
         {Array.from({ length: clampedDuration }, (_, i) => {
           const attention = secondToAttention(i);
           const fill = eventColor(attention);
@@ -94,12 +121,12 @@ export function TimelineScrubber({ durationSec, events, onScrub }: TimelineScrub
             <rect
               key={i}
               x={x}
-              y={0}
+              y={SPROCKET_R + 2}
               width={Math.max(1, rectW - 0.5)}
-              height={HEIGHT}
+              height={HEIGHT - SPROCKET_R * 2 - 4}
               fill={fill}
               opacity={isHovered ? 0.9 : 0.4}
-              rx={1}
+              rx={0.5}
             />
           );
         })}
@@ -107,7 +134,14 @@ export function TimelineScrubber({ durationSec, events, onScrub }: TimelineScrub
 
       {hoveredSecond !== null && (
         <div
-          className="pointer-events-none absolute -top-9 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-panel-neutral px-2 py-1 font-mono text-[11px] text-text-primary shadow-lg"
+          className="pointer-events-none absolute -top-9 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1 shadow-lg"
+          style={{
+            backgroundColor: 'var(--surface-2)',
+            border: '1px solid var(--hairline-strong)',
+            color: 'var(--ink)',
+            fontFamily: "'Martian Mono Variable', 'JetBrains Mono', monospace",
+            fontSize: '11px',
+          }}
           aria-live="polite"
         >
           T+{hoveredSecond}s

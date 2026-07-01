@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { useMemo, useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { QUESTIONS } from './questions';
 import type { ExamAnswer, ProctorEvent } from './types';
 import {
@@ -8,7 +8,7 @@ import {
   computeVerdict,
 } from './types';
 import { Check, X, Download, RotateCcw, ShieldCheck, ShieldAlert } from 'lucide-react';
-import { itemTransition } from '../../motion.config';
+import { ApertureGauge } from '../../components/ui/ApertureGauge';
 
 interface ResultsScreenProps {
   answers: ExamAnswer[];
@@ -21,18 +21,13 @@ interface ResultsScreenProps {
   onRetake: () => void;
 }
 
-function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
-  const rad = ((deg - 90) * Math.PI) / 180;
-  return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
-}
+const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
 
-function describeArc(cx: number, cy: number, r: number, pct: number): string {
-  const endDeg = pct * 3.6;
-  const [x1, y1] = polar(cx, cy, r, 0);
-  const [x2, y2] = polar(cx, cy, r, Math.min(endDeg, 359.9));
-  const sweep = endDeg > 180 ? 1 : 0;
-  return `M ${x1} ${y1} A ${r} ${r} 0 ${sweep} 0 ${x2} ${y2}`;
-}
+const VERDICT_STYLES: Record<string, { label: string; color: string; bgColor: string }> = {
+  pass: { label: 'PASS', color: 'var(--jade)', bgColor: 'rgba(14,107,92,0.12)' },
+  investigate: { label: 'REVIEW', color: 'var(--ochre)', bgColor: 'rgba(185,118,58,0.12)' },
+  fail: { label: 'FLAGGED', color: 'var(--clay)', bgColor: 'rgba(166,61,47,0.12)' },
+};
 
 function topicLabel(answers: ExamAnswer[]): { topic: string; correct: number; total: number }[] {
   const map = new Map<string, { correct: number; total: number }>();
@@ -47,20 +42,6 @@ function topicLabel(answers: ExamAnswer[]): { topic: string; correct: number; to
   return Array.from(map.entries()).map(([topic, v]) => ({ topic, ...v }));
 }
 
-const VERDICT_LABEL: Record<string, string> = {
-  pass: 'PASS',
-  investigate: 'INVESTIGATE',
-  fail: 'FAIL',
-};
-
-const VERDICT_COLOR: Record<string, string> = {
-  pass: 'text-signal-drowsy',
-  investigate: 'text-signal-caution',
-  fail: 'text-signal-multi',
-};
-
-const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
-
 export function ResultsScreen({
   answers,
   events,
@@ -71,6 +52,9 @@ export function ResultsScreen({
   onDownloadReport,
   onRetake,
 }: ResultsScreenProps) {
+  const [showVerdict, setShowVerdict] = useState(false);
+  const [showContent, setShowContent] = useState(false);
+
   const correctCount = answers.filter((a) => {
     const q = QUESTIONS.find((qq) => qq.id === a.questionId);
     return q && a.selectedIndex === q.correctIndex;
@@ -83,6 +67,8 @@ export function ResultsScreen({
   const integrityScoreValue = computeIntegrityScore(events);
   const examScorePct = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
   const topics = useMemo(() => topicLabel(answers), [answers]);
+  const openness = Math.max(0.05, proctorIQ / 100);
+  const verdictStyle = VERDICT_STYLES[verdict] ?? VERDICT_STYLES.pass;
 
   const eventCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -92,49 +78,53 @@ export function ResultsScreen({
     return counts;
   }, [events]);
 
-  const ringColor =
-    pct >= 80
-      ? 'var(--signal-drowsy)'
-      : pct >= 50
-        ? 'var(--signal-caution)'
-        : 'var(--signal-multi)';
+  useEffect(() => {
+    const t1 = setTimeout(() => setShowVerdict(true), 600);
+    const t2 = setTimeout(() => setShowContent(true), 900);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  const progressColor = pct >= 80 ? 'var(--jade)' : pct >= 50 ? 'var(--ochre)' : 'var(--clay)';
 
   return (
-    <div className="flex h-full w-full gap-0 lg:gap-6 overflow-y-auto">
+    <div className="flex h-full w-full gap-0 lg:gap-6 overflow-y-auto" style={{ backgroundColor: 'var(--surface-0)' }}>
       <motion.div
         className="flex w-full flex-col gap-6 lg:w-[60%] p-6"
         initial={{ opacity: 0, x: -24 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={itemTransition}
+        animate={showContent ? { opacity: 1, x: 0 } : { opacity: 0, x: -24 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
       >
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative w-40 h-40">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
-              <circle cx="80" cy="80" r="68" fill="none" stroke="var(--signal-neutral)" strokeWidth="8" opacity={0.15} />
-              <motion.path
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: pct / 100 }}
-                transition={{ duration: 1, ease: 'easeOut' }}
-                d={describeArc(80, 80, 68, pct)}
-                fill="none"
-                stroke={ringColor}
-                strokeWidth="8"
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="font-display text-[38px] tabular-nums leading-none text-text-primary">
-                {correctCount}/{totalQuestions}
-              </span>
-              <span className="font-sans text-[11px] uppercase tracking-[0.1em] text-text-secondary">
-                Score
-              </span>
-            </div>
+        <div className="flex flex-col items-center gap-6 pt-4">
+          <div className="relative flex flex-col items-center">
+            <ApertureGauge openness={openness} score={proctorIQ} size={200} showScore />
+            <AnimatePresence>
+              {showVerdict && (
+                <motion.div
+                  className="mt-4 flex flex-col items-center gap-1"
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, ease: 'easeOut', type: 'spring', stiffness: 100, damping: 15 }}
+                >
+                  <span
+                    className="font-display text-[clamp(1.5rem,5vw,2.5rem)] uppercase tracking-[0.08em] px-6 py-2 rounded-full"
+                    style={{
+                      color: verdictStyle.color,
+                      backgroundColor: verdictStyle.bgColor,
+                    }}
+                  >
+                    {verdictStyle.label}
+                  </span>
+                  <span className="font-sans text-xs" style={{ color: 'var(--ink-muted)' }}>
+                    ProctorIQ Score (exam + integrity)
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
         <div>
-          <h3 className="font-sans text-[13px] uppercase tracking-[0.1em] text-text-secondary mb-3">
+          <h3 className="font-sans text-sm uppercase tracking-[0.1em] mb-3" style={{ color: 'var(--ink-muted)' }}>
             Question Breakdown
           </h3>
           <div className="flex flex-col gap-1.5">
@@ -145,23 +135,22 @@ export function ResultsScreen({
               return (
                 <div
                   key={q.id}
-                  className="flex items-center gap-3 rounded-lg bg-white/[0.03] px-3 py-2"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2"
+                  style={{ backgroundColor: 'var(--surface-1)' }}
                 >
                   <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[11px] tabular-nums ${
-                      isCorrect
-                        ? 'bg-signal-drowsy/20 text-signal-drowsy'
-                        : isUnanswered
-                          ? 'bg-white/[0.05] text-text-muted'
-                          : 'bg-signal-multi/20 text-signal-multi'
-                    }`}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[11px] tabular-nums"
+                    style={{
+                      backgroundColor: isCorrect ? 'rgba(14,107,92,0.2)' : isUnanswered ? 'var(--hairline)' : 'rgba(166,61,47,0.2)',
+                      color: isCorrect ? 'var(--jade)' : isUnanswered ? 'var(--ink-faint)' : 'var(--clay)',
+                    }}
                   >
                     {isCorrect ? <Check size={12} /> : isUnanswered ? '--' : <X size={12} />}
                   </span>
-                  <span className="flex-1 truncate font-sans text-[13px] text-text-primary">
+                  <span className="flex-1 truncate font-sans text-sm" style={{ color: 'var(--ink)' }}>
                     {q.question}
                   </span>
-                  <span className="font-mono text-[11px] tabular-nums text-text-mono shrink-0">
+                  <span className="font-mono text-[11px] tabular-nums shrink-0" style={{ color: 'var(--ink-faint)' }}>
                     {OPTION_LABELS[q.correctIndex]}
                   </span>
                 </div>
@@ -171,7 +160,7 @@ export function ResultsScreen({
         </div>
 
         <div>
-          <h3 className="font-sans text-[13px] uppercase tracking-[0.1em] text-text-secondary mb-3">
+          <h3 className="font-sans text-sm uppercase tracking-[0.1em] mb-3" style={{ color: 'var(--ink-muted)' }}>
             Topic Performance
           </h3>
           <div className="flex flex-col gap-2">
@@ -179,19 +168,19 @@ export function ResultsScreen({
               const tpct = t.total > 0 ? Math.round((t.correct / t.total) * 100) : 0;
               return (
                 <div key={t.topic} className="flex items-center gap-3">
-                  <span className="w-20 font-sans text-[13px] text-text-primary uppercase">
+                  <span className="w-20 font-sans text-sm uppercase" style={{ color: 'var(--ink)' }}>
                     {t.topic}
                   </span>
-                  <div className="flex-1 h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--hairline)' }}>
                     <motion.div
                       className="h-full rounded-full"
-                      style={{ backgroundColor: ringColor }}
+                      style={{ backgroundColor: progressColor }}
                       initial={{ width: 0 }}
                       animate={{ width: `${tpct}%` }}
                       transition={{ duration: 0.8, ease: 'easeOut' }}
                     />
                   </div>
-                  <span className="font-mono text-[13px] tabular-nums text-text-secondary w-8 text-right">
+                  <span className="font-mono text-sm tabular-nums w-8 text-right" style={{ color: 'var(--ink-muted)' }}>
                     {tpct}%
                   </span>
                 </div>
@@ -202,67 +191,56 @@ export function ResultsScreen({
       </motion.div>
 
       <motion.div
-        className="flex w-full flex-col gap-5 lg:w-[40%] border-t lg:border-t-0 lg:border-l border-white/[0.06] p-6"
+        className="flex w-full flex-col gap-5 lg:w-[40%] p-6"
+        style={{ borderTop: 'none', borderLeft: '1px solid var(--hairline)' }}
         initial={{ opacity: 0, x: 24 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ ...itemTransition, delay: 0.15 }}
+        animate={showContent ? { opacity: 1, x: 0 } : { opacity: 0, x: 24 }}
+        transition={{ duration: 0.5, ease: 'easeOut', delay: 0.15 }}
       >
-        <div className="text-center">
-          <span className={`font-display text-[42px] leading-none tabular-nums ${VERDICT_COLOR[verdict]}`}>
-            {proctorIQ}
-          </span>
-          <div className={`font-sans text-[13px] uppercase tracking-[0.15em] ${VERDICT_COLOR[verdict]}`}>
-            {VERDICT_LABEL[verdict]}
-          </div>
-          <div className="mt-1 font-sans text-[11px] text-text-secondary">
-            ProctorIQ Score (exam + integrity)
-          </div>
-        </div>
-
-        <div className="flex justify-around rounded-xl bg-white/[0.03] p-3">
+        <div className="flex justify-around rounded-xl p-3" style={{ backgroundColor: 'var(--surface-1)' }}>
           <div className="text-center">
-            <div className="font-mono text-lg tabular-nums text-text-primary">
+            <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
               {integrityScoreValue}
             </div>
-            <div className="font-sans text-[10px] uppercase tracking-[0.1em] text-text-secondary">
+            <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
               Integrity
             </div>
           </div>
           <div className="text-center">
-            <div className="font-mono text-lg tabular-nums text-text-primary">
+            <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
               {events.length}
             </div>
-            <div className="font-sans text-[10px] uppercase tracking-[0.1em] text-text-secondary">
+            <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
               Events
             </div>
           </div>
           <div className="text-center">
-            <div className="font-mono text-lg tabular-nums text-text-primary">
+            <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
               {examScorePct}%
             </div>
-            <div className="font-sans text-[10px] uppercase tracking-[0.1em] text-text-secondary">
+            <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
               Exam
             </div>
           </div>
         </div>
 
         <div>
-          <h3 className="font-sans text-[13px] uppercase tracking-[0.1em] text-text-secondary mb-2">
+          <h3 className="font-sans text-sm uppercase tracking-[0.1em] mb-2" style={{ color: 'var(--ink-muted)' }}>
             Event Summary
           </h3>
           <div className="flex flex-col gap-1">
             {Object.entries(eventCounts).map(([type, count]) => (
-              <div key={type} className="flex justify-between rounded bg-white/[0.02] px-3 py-1.5">
-                <span className="font-sans text-[13px] text-text-primary capitalize">
+              <div key={type} className="flex justify-between rounded px-3 py-1.5" style={{ backgroundColor: 'var(--surface-1)' }}>
+                <span className="font-sans text-sm capitalize" style={{ color: 'var(--ink)' }}>
                   {type.replace(/_/g, ' ')}
                 </span>
-                <span className="font-mono text-[13px] tabular-nums text-text-secondary">
+                <span className="font-mono text-sm tabular-nums" style={{ color: 'var(--ink-muted)' }}>
                   {count}
                 </span>
               </div>
             ))}
             {events.length === 0 && (
-              <span className="font-sans text-[13px] text-text-muted italic">
+              <span className="font-sans text-sm italic" style={{ color: 'var(--ink-faint)' }}>
                 No proctor events recorded
               </span>
             )}
@@ -270,22 +248,22 @@ export function ResultsScreen({
         </div>
 
         <div>
-          <h3 className="font-sans text-[13px] uppercase tracking-[0.1em] text-text-secondary mb-2">
+          <h3 className="font-sans text-sm uppercase tracking-[0.1em] mb-2" style={{ color: 'var(--ink-muted)' }}>
             Timeline
           </h3>
           <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
             {events.length === 0 ? (
-              <span className="font-sans text-[13px] text-text-muted italic">
+              <span className="font-sans text-sm italic" style={{ color: 'var(--ink-faint)' }}>
                 No events
               </span>
             ) : (
               events.map((e, i) => (
-                <div key={`ev-${i}`} className="flex items-center gap-2 rounded bg-white/[0.02] px-3 py-1">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-signal-caution" />
-                  <span className="flex-1 font-sans text-[13px] text-text-primary capitalize">
+                <div key={`ev-${i}`} className="flex items-center gap-2 rounded px-3 py-1" style={{ backgroundColor: 'var(--surface-1)' }}>
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: 'var(--ochre)' }} />
+                  <span className="flex-1 font-sans text-sm capitalize" style={{ color: 'var(--ink)' }}>
                     {e.type.replace(/_/g, ' ')}
                   </span>
-                  <span className="font-mono text-[11px] tabular-nums text-text-mono">
+                  <span className="font-mono text-[11px] tabular-nums" style={{ color: 'var(--ink-faint)' }}>
                     {new Date(e.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
@@ -294,14 +272,14 @@ export function ResultsScreen({
           </div>
         </div>
 
-        <div className="rounded-xl bg-white/[0.03] px-3 py-2">
-          <div className="font-sans text-[10px] uppercase tracking-[0.1em] text-text-muted mb-1">
+        <div className="rounded-xl px-3 py-2" style={{ backgroundColor: 'var(--surface-1)' }}>
+          <div className="font-sans text-[10px] uppercase tracking-[0.1em] mb-1" style={{ color: 'var(--ink-faint)' }}>
             Report Hash (SHA-256)
           </div>
           {hashLoading ? (
             <div className="flex items-center gap-2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-signal-focus border-t-transparent" />
-              <span className="font-sans text-[12px] text-text-secondary italic">
+              <div className="h-4 w-4 animate-spin rounded-full border-2" style={{ borderColor: 'var(--cobalt)', borderTopColor: 'transparent' }} />
+              <span className="font-sans text-[12px] italic" style={{ color: 'var(--ink-muted)' }}>
                 Verifying...
               </span>
             </div>
@@ -309,18 +287,18 @@ export function ResultsScreen({
             <>
               <div className="flex items-center gap-1 mb-1">
                 {serverVerified ? (
-                  <span className="flex items-center gap-1 font-sans text-[10px] text-signal-drowsy">
+                  <span className="flex items-center gap-1 font-sans text-[10px]" style={{ color: 'var(--gold)' }}>
                     <ShieldCheck size={12} />
                     Server-Verified
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 font-sans text-[10px] text-signal-caution">
+                  <span className="flex items-center gap-1 font-sans text-[10px]" style={{ color: 'var(--ochre)' }}>
                     <ShieldAlert size={12} />
                     Local Draft — Not Server Verified
                   </span>
                 )}
               </div>
-              <div className="font-mono text-[11px] text-text-mono break-all tabular-nums">
+              <div className="font-mono text-[11px] break-all tabular-nums" style={{ color: 'var(--cobalt)' }}>
                 {reportHash || 'computing...'}
               </div>
             </>
@@ -329,7 +307,11 @@ export function ResultsScreen({
 
         <div className="flex gap-3 mt-auto">
           <button
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-signal-focus/[0.12] px-4 py-3 font-sans text-[13px] uppercase tracking-[0.1em] text-signal-focus transition-colors hover:bg-signal-focus/[0.2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 font-sans text-sm uppercase tracking-[0.1em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{
+              backgroundColor: 'rgba(46,76,140,0.12)',
+              color: 'var(--cobalt)',
+            }}
             onClick={onDownloadReport}
             aria-label="Download report"
           >
@@ -337,7 +319,11 @@ export function ResultsScreen({
             Download
           </button>
           <button
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-4 py-3 font-sans text-[13px] uppercase tracking-[0.1em] text-text-primary transition-colors hover:bg-white/[0.1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 font-sans text-sm uppercase tracking-[0.1em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{
+              backgroundColor: 'var(--surface-1)',
+              color: 'var(--ink)',
+            }}
             onClick={onRetake}
             aria-label="Take another exam"
           >
