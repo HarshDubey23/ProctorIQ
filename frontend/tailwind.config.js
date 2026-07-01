@@ -44,11 +44,11 @@ export default {
         'signal': {
           focus: 'var(--jade)',
           alert: 'var(--ochre)',
-          absent: 'var(--plum)',
+          absent: 'var(--clay)',
           multi: 'var(--clay)',
           neutral: 'var(--ink-faint)',
           caution: 'var(--ochre)',
-          drowsy: 'var(--jade)',
+          drowsy: 'var(--plum)',
         },
         'bg': {
           neutral: 'var(--surface-0)',

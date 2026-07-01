@@ -158,11 +158,11 @@
    */
   --signal-focus: var(--jade);
   --signal-alert: var(--ochre);
-  --signal-absent: var(--plum);
+  --signal-absent: var(--clay);
   --signal-multi: var(--clay);
   --signal-neutral: var(--ink-faint);
   --signal-caution: var(--ochre);
-  --signal-drowsy: var(--jade);
+  --signal-drowsy: var(--plum);
   --text-primary: var(--ink);
   --text-secondary: var(--ink-muted);
   --text-muted: var(--ink-faint);
