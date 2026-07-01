@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from backend.core.config import get_settings
 from backend.core.session_store import InMemorySessionStore
 from backend.core.room_store import InMemoryRoomStore
 
@@ -13,7 +15,32 @@ from backend.core.room_store import InMemoryRoomStore
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.session_store = InMemorySessionStore()
     app.state.room_store = InMemoryRoomStore()
-    yield
+
+    settings = get_settings()
+
+    async def _periodic_cleanup() -> None:
+        while True:
+            await asyncio.sleep(300)
+            try:
+                await app.state.room_store.cleanup_stale_rooms()
+            except Exception:
+                pass
+            try:
+                await app.state.session_store.cleanup_stale_sessions(
+                    timeout_minutes=settings.session_timeout_minutes
+                )
+            except Exception:
+                pass
+
+    cleanup_task = asyncio.create_task(_periodic_cleanup())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
 
 
 def create_app() -> FastAPI:

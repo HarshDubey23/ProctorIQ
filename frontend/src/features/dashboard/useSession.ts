@@ -2,8 +2,10 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { DetectionResult } from '../../workers/detection.worker';
 import { saveSession } from '../../lib/db';
 import type { StoredSession, StoredEvent } from '../../lib/db';
+import { WSClient, type WSStatus } from '../../lib/ws';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
+const WS_BASE = API_BASE.replace(/^http/, 'ws');
 
 export type SessionState = 'idle' | 'running';
 
@@ -25,9 +27,12 @@ export interface SessionMetrics {
   duration: number;
 }
 
+const NON_FOCUSED_STATES = new Set(['distracted', 'absent', 'drowsy', 'multi']);
+
 export function useSession(getResult: () => DetectionResult | null, roomId?: string) {
   const [state, setState] = useState<SessionState>('idle');
   const [history, setHistory] = useState<AttentionSample[]>([]);
+  const [wsStatus, setWsStatus] = useState<WSStatus>('disconnected');
   const [metrics, setMetrics] = useState<SessionMetrics>({
     score: 0,
     attentionLabel: 'focused',
@@ -44,7 +49,11 @@ export function useSession(getResult: () => DetectionResult | null, roomId?: str
   const gazeCountRef = useRef(0);
   const blinkCountRef = useRef(0);
   const historyRef = useRef<AttentionSample[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
+  const wsRef = useRef<WSClient | null>(null);
+  const sessionIdRef = useRef<string>('');
+  const prevAttentionRef = useRef<string>('focused');
+  const lastFlagTimeRef = useRef<number>(0);
+  const lastAttentionChangeTimeRef = useRef<number>(0);
 
   const computeScore = useCallback((result: DetectionResult | null): number => {
     if (!result) return 0;
@@ -54,7 +63,23 @@ export function useSession(getResult: () => DetectionResult | null, roomId?: str
       case 'absent': return 0;
       case 'drowsy': return Math.round(result.confidence * 50);
       case 'multi': return Math.round(result.confidence * 35);
+      default:
+        console.warn('[useSession] Unknown attention label:', result.attention);
+        return 0;
     }
+  }, []);
+
+  const sendFlag = useCallback((eventType: string, confidence: number | null, details: Record<string, unknown> | null) => {
+    const ws = wsRef.current;
+    if (!ws || ws.getStatus() !== 'connected') return;
+    const msg = {
+      type: 'flag',
+      event_type: eventType,
+      timestamp_s: Math.floor((Date.now() - startTimeRef.current) / 1000),
+      confidence,
+      details,
+    };
+    ws.sendRaw(msg);
   }, []);
 
   const tick = useCallback(() => {
@@ -91,39 +116,71 @@ export function useSession(getResult: () => DetectionResult | null, roomId?: str
       duration,
     });
 
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      try {
-        wsRef.current.send(JSON.stringify({
-          type: 'state',
-          attention_state: attention,
-          ear: result?.ear ?? 0,
-          head_pose: result?.headPose ?? { yaw: 0, pitch: 0, roll: 0 },
-          face_count: result?.faceCount ?? 0,
-        }));
-      } catch { /* noop */ }
+    const ws = wsRef.current;
+    if (ws && ws.getStatus() === 'connected') {
+      const stateMsg = {
+        type: 'state',
+        attention_state: attention,
+        ear: result?.ear ?? 0,
+        head_pose: result?.headPose ?? { yaw: 0, pitch: 0, roll: 0 },
+        face_count: result?.faceCount ?? 0,
+      };
+      ws.sendRaw(stateMsg);
+
+      const prev = prevAttentionRef.current;
+      if (attention !== prev) {
+        if (NON_FOCUSED_STATES.has(attention)) {
+          sendFlag(attention, result?.confidence ?? null, {
+            previous_state: prev,
+            ear: result?.ear ?? null,
+          });
+          lastFlagTimeRef.current = now;
+          lastAttentionChangeTimeRef.current = now;
+        }
+        prevAttentionRef.current = attention;
+      } else if (NON_FOCUSED_STATES.has(attention) && now - lastFlagTimeRef.current >= 5000) {
+        sendFlag(attention, result?.confidence ?? null, {
+          previous_state: prev,
+          heartbeat: true,
+          ear: result?.ear ?? null,
+        });
+        lastFlagTimeRef.current = now;
+      }
     }
-  }, [getResult, computeScore]);
+  }, [getResult, computeScore, sendFlag]);
 
   const start = useCallback(() => {
     startTimeRef.current = Date.now();
     gazeCountRef.current = 0;
     blinkCountRef.current = 0;
     historyRef.current = [];
+    prevAttentionRef.current = 'focused';
+    lastFlagTimeRef.current = 0;
+    lastAttentionChangeTimeRef.current = 0;
     setHistory([]);
     setState('running');
 
-    if (roomId) {
-      try {
-        const wsUrl = API_BASE.replace(/^http/, 'ws');
-        const ws = new WebSocket(`${wsUrl}/ws/${crypto.randomUUID()}?room_id=${roomId}`);
-        wsRef.current = ws;
-        ws.onopen = () => {
-          ws.send(JSON.stringify({ type: 'state', attention_state: 'focused', ear: 0, head_pose: { yaw: 0, pitch: 0, roll: 0 }, face_count: 0 }));
-        };
-        ws.onerror = () => { /* noop */ };
-        ws.onclose = () => { wsRef.current = null; };
-      } catch { /* noop */ }
-    }
+    const sessionId = crypto.randomUUID();
+    sessionIdRef.current = sessionId;
+
+    const wsUrl = `${WS_BASE}/ws/${sessionId}${roomId ? `?room_id=${roomId}` : ''}`;
+    const ws = new WSClient(wsUrl);
+    wsRef.current = ws;
+
+    ws.onStatus((status) => {
+      setWsStatus(status);
+      if (status === 'connected') {
+        ws.sendRaw({
+          type: 'state',
+          attention_state: 'focused',
+          ear: 0,
+          head_pose: { yaw: 0, pitch: 0, roll: 0 },
+          face_count: 0,
+        });
+      }
+    });
+
+    ws.connect();
 
     tickRef.current = setInterval(tick, 1000);
   }, [tick, roomId]);
@@ -134,9 +191,10 @@ export function useSession(getResult: () => DetectionResult | null, roomId?: str
       tickRef.current = null;
     }
     if (wsRef.current) {
-      wsRef.current.close();
+      wsRef.current.disconnect();
       wsRef.current = null;
     }
+    setWsStatus('disconnected');
     const lastMetrics = { ...metrics };
     const totalEvents: StoredEvent[] = historyRef.current.map((h) => ({
       eventType: h.attention,
@@ -145,7 +203,7 @@ export function useSession(getResult: () => DetectionResult | null, roomId?: str
       details: null,
     }));
     const sessionRecord: StoredSession = {
-      id: `session-${startTimeRef.current}`,
+      id: sessionIdRef.current || `session-${startTimeRef.current}`,
       start: startTimeRef.current,
       end: Date.now(),
       mode: 'selftest',
@@ -164,8 +222,12 @@ export function useSession(getResult: () => DetectionResult | null, roomId?: str
   useEffect(() => {
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
+      if (wsRef.current) {
+        wsRef.current.disconnect();
+        wsRef.current = null;
+      }
     };
   }, []);
 
-  return { state, history, metrics, start, stop };
+  return { state, history, metrics, wsStatus, start, stop };
 }

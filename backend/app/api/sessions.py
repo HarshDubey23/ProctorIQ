@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 
 from backend.core.session_store import InMemorySessionStore, SessionStore
 from backend.cv.scoring import FlagEvent, compute_attention_score
-from backend.models.session import Session, SessionUpdate, SessionSummary, Verdict
+from backend.models.session import Session, SessionCreate, SessionUpdate, SessionSummary, Verdict
 from backend.report.pdf import generate_session_pdf
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -30,17 +30,22 @@ async def list_sessions(
 
 @router.post("", status_code=201)
 async def create_session(
-    body: Session,
+    body: SessionCreate,
     store: InMemorySessionStore = Depends(_get_store),
 ) -> Session:
-    if not body.id:
-        body.id = uuid4().hex
-    if body.start is None:
-        body.start = datetime.now(timezone.utc)
-    existing = await store.get_session(body.id)
+    session_id = body.id if body.id else uuid4().hex
+    start = body.start if body.start is not None else datetime.now(timezone.utc)
+    existing = await store.get_session(session_id)
     if existing is not None:
         raise HTTPException(status_code=409, detail="Session already exists")
-    return await store.create_session(body)
+    session = Session(
+        id=session_id,
+        start=start,
+        end=body.end,
+        mode=body.mode,
+        benchmark=body.benchmark,
+    )
+    return await store.create_session(session)
 
 
 @router.get("/{session_id}")

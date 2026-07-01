@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, cast
+from uuid import uuid4
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from backend.core.session_store import SessionStore
 from backend.core.room_store import InMemoryRoomStore
+from backend.cv.ear import compute_ear
+from backend.cv.kalman import EarKalman, HeadPoseKalman
 from backend.models.room import RoomMember
 from backend.models.session import BenchmarkResult, Event
 from backend.models.ws import (
@@ -35,6 +37,10 @@ class ConnectionState:
     running_score: float = 0.0
     room_id: str | None = None
     display_name: str | None = None
+
+    # Server-side Kalman smoothers — give a second opinion on client data
+    ear_kalman: EarKalman = field(default_factory=EarKalman)
+    pose_kalman: HeadPoseKalman = field(default_factory=HeadPoseKalman)
 
 
 async def _send_ticks(
@@ -93,9 +99,8 @@ async def _handle_flag(
     state: ConnectionState,
     store: SessionStore,
 ) -> None:
-    event_id = abs(hash(json.dumps(ev.model_dump(mode="json"), sort_keys=True))) % (10**12)
     event = Event(
-        id=str(event_id),
+        id=uuid4().hex,
         session_id=session_id,
         event_type=ev.event_type,
         timestamp_s=ev.timestamp_s,
@@ -117,9 +122,33 @@ async def _handle_flag(
 
 async def _handle_state(ev: WsStateEvent, state: ConnectionState) -> None:
     state.attention_state = ev.attention_state
-    state.ear = ev.ear
-    state.head_pose = ev.head_pose
     state.face_count = ev.face_count
+
+    # Client-reported raw values
+    client_ear = ev.ear
+    client_yaw = ev.head_pose.get("yaw", 0.0)
+    client_pitch = ev.head_pose.get("pitch", 0.0)
+    client_roll = ev.head_pose.get("roll", 0.0)
+
+    # Server-side Kalman smoothing — provides a second opinion
+    state.ear_kalman.predict()
+    server_ear = state.ear_kalman.update(client_ear)
+
+    import numpy as np
+    state.pose_kalman.predict()
+    smoothed = state.pose_kalman.update(np.array([client_yaw, client_pitch, client_roll]))
+
+    state.ear = server_ear
+
+    # Build head_pose dict with both client and server values
+    state.head_pose = {
+        "yaw": client_yaw,
+        "pitch": client_pitch,
+        "roll": client_roll,
+        "server_smoothed_yaw": float(smoothed[0]),
+        "server_smoothed_pitch": float(smoothed[1]),
+        "server_smoothed_roll": float(smoothed[2]),
+    }
 
 
 async def _handle_benchmark(ev: WsBenchmarkEvent, session_id: str, store: SessionStore) -> None:

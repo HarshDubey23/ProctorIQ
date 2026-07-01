@@ -88,6 +88,11 @@ export class WSClient {
     this.ws.send(JSON.stringify(msg));
   }
 
+  sendRaw(payload: Record<string, unknown>): void {
+    if (this.ws?.readyState !== WebSocket.OPEN) return;
+    this.ws.send(JSON.stringify(payload));
+  }
+
   onMessage(cb: MessageHandler): this {
     this.onMessageCb = cb;
     return this;

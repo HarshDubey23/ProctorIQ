@@ -123,10 +123,11 @@ class TestReportScoreIntegrity:
     async def test_report_computes_score_from_event_log(self) -> None:
         """Even if final_score is tampered directly on the store, the report
         recomputes it from the authoritative event log."""
+        from backend.core.room_store import InMemoryRoomStore
         app = create_app()
         store = InMemorySessionStore()
         app.state.session_store = store
-        app.state.room_store = InMemorySessionStore()
+        app.state.room_store = InMemoryRoomStore()
 
         session_id = "compute-from-events"
         await store.create_session(Session(

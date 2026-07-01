@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Protocol
 
 from backend.models.session import Event, Session, SessionSummary
@@ -18,6 +19,8 @@ class SessionStore(Protocol):
     async def list_sessions(
         self, limit: int = 50, offset: int = 0
     ) -> list[SessionSummary]: ...
+
+    async def cleanup_stale_sessions(self, timeout_minutes: int = 60) -> None: ...
 
 
 class InMemorySessionStore:
@@ -48,6 +51,18 @@ class InMemorySessionStore:
                 raise ValueError(f"Session {session_id} not found")
             sess.events.append(event)
             return event
+
+    async def cleanup_stale_sessions(self, timeout_minutes: int = 60) -> None:
+        async with self._lock:
+            now = datetime.now(timezone.utc)
+            stale = []
+            for sid, sess in self._sessions.items():
+                if sess.end is None and sess.start:
+                    elapsed = (now - sess.start).total_seconds()
+                    if elapsed > timeout_minutes * 60:
+                        stale.append(sid)
+            for sid in stale:
+                self._sessions.pop(sid, None)
 
     async def list_sessions(
         self, limit: int = 50, offset: int = 0

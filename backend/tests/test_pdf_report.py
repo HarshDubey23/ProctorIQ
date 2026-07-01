@@ -29,24 +29,21 @@ def test_pdf_generation_runs() -> None:
     assert len(pdf_bytes) > 0
 
 
-@pytest.mark.asyncio
-async def test_verify_get_endpoint() -> None:
-    from backend.app.api.verify import get_session_hash
-    from backend.core.session_store import InMemorySessionStore
-    from backend.models.session import Session
-    from datetime import datetime, timezone
+def test_verify_get_endpoint_via_client() -> None:
+    from fastapi.testclient import TestClient
+    from backend.app.main import create_app
 
-    store = InMemorySessionStore()
-    session = Session(
-        id="session-test-verify-get",
-        start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
-        mode="exam",
-        events=[],
-    )
-    await store.create_session(session)
-
-    res = await get_session_hash("session-test-verify-get", store=store)
-    assert "hash" in res
-    assert len(res["hash"]) == 64
+    app = create_app()
+    with TestClient(app) as client:
+        client.post("/api/sessions", json={
+            "id": "session-test-verify-get",
+            "start": "2025-01-01T10:00:00Z",
+            "mode": "exam",
+        })
+        res = client.get("/api/verify/session-test-verify-get")
+        assert res.status_code == 200
+        data = res.json()
+        assert "hash" in data
+        assert len(data["hash"]) == 64
 
 

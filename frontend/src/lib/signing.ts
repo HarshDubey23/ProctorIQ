@@ -42,6 +42,11 @@ export async function computeSessionHash(session: {
     confidence: number | null;
   }>;
 }): Promise<string> {
+  // Try to fetch the authoritative hash from the backend first
+  const serverHash = await fetchSessionHash(session.id);
+  if (serverHash) return serverHash;
+
+  // Fall back to local computation for offline/local-only sessions
   const eventsSorted = (session.events ?? [])
     .map((e) => ({
       event_type: e.eventType,

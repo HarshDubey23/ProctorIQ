@@ -62,7 +62,7 @@ export function ReportPanel() {
     );
   }
 
-  const { session, durationSec, eventCounts, hash } = report;
+  const { session, durationSec, eventCounts, hash, serverVerified } = report;
   const verdict = session.verdict ?? 'INCONCLUSIVE';
 
   return (
@@ -84,6 +84,11 @@ export function ReportPanel() {
               <span className="font-mono text-[10px] text-text-muted">
                 {session.id.slice(0, 12)}...
               </span>
+              {!serverVerified && (
+                <span className="inline-flex items-center gap-1 rounded-md border border-signal-caution/30 bg-signal-caution/[0.08] px-2 py-0.5 font-sans text-[9px] uppercase tracking-[0.12em] text-signal-caution">
+                  Local Draft — Not Server Verified
+                </span>
+              )}
             </div>
           </div>
           <div className="flex gap-4 font-sans text-[11px] text-text-secondary">

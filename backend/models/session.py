@@ -63,6 +63,18 @@ class Session(BaseModel):
     )
 
 
+class SessionCreate(BaseModel):
+    """Restricted model for POST — client cannot supply integrity fields."""
+
+    model_config = ConfigDict(frozen=False, extra="forbid")
+
+    id: str = ""
+    start: datetime | None = None
+    end: datetime | None = None
+    mode: str = "selftest"
+    benchmark: BenchmarkResult | None = None
+
+
 class SessionUpdate(BaseModel):
     """Restricted model for PATCH — only non-integrity fields are mutable by the client."""
 

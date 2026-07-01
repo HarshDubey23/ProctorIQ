@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSession, listSessions, type StoredSession } from '../../lib/db';
-import { computeSessionHash } from '../../lib/signing';
+import { computeSessionHash, fetchSessionHash } from '../../lib/signing';
 
 export interface ReportData {
   session: StoredSession;
   durationSec: number;
   eventCounts: Record<string, number>;
   hash: string;
+  serverVerified: boolean;
 }
 
 export function useReport(sessionId?: string) {
@@ -16,11 +17,50 @@ export function useReport(sessionId?: string) {
 
   const loadReport = useCallback(async (id: string) => {
     setLoading(true);
-    const session = await getSession(id);
+
+    const baseUrl = import.meta.env.VITE_API_URL ?? '';
+
+    let session: StoredSession | null = null;
+    let serverVerified = false;
+
+    try {
+      const res = await fetch(`${baseUrl}/api/sessions/${id}`);
+      if (res.ok) {
+        const serverSession = await res.json();
+        session = {
+          id: serverSession.id,
+          start: new Date(serverSession.start).getTime(),
+          end: serverSession.end ? new Date(serverSession.end).getTime() : null,
+          mode: serverSession.mode ?? 'selftest',
+          finalScore: serverSession.final_score,
+          pctFocused: serverSession.pct_focused,
+          verdict: serverSession.verdict,
+          events: (serverSession.events ?? []).map((e: Record<string, unknown>) => ({
+            eventType: e.event_type as string,
+            timestampS: e.timestamp_s as number,
+            confidence: e.confidence as number | null,
+            details: e.details as Record<string, unknown> | null,
+          })),
+          benchmark: serverSession.benchmark ? {
+            modelLatencyMs: (serverSession.benchmark as Record<string, unknown>).model_latency_ms as number,
+            inferenceCount: (serverSession.benchmark as Record<string, unknown>).inference_count as number,
+            pcaLatencyMs: (serverSession.benchmark as Record<string, unknown>).pca_latency_ms as number,
+          } : null,
+        };
+        serverVerified = true;
+      }
+    } catch {
+      // Backend unreachable — fall through to local
+    }
+
     if (!session) {
-      setReport(null);
-      setLoading(false);
-      return;
+      const localSession = await getSession(id);
+      if (!localSession) {
+        setReport(null);
+        setLoading(false);
+        return;
+      }
+      session = localSession;
     }
 
     const start = session.start;
@@ -32,9 +72,15 @@ export function useReport(sessionId?: string) {
       eventCounts[ev.eventType] = (eventCounts[ev.eventType] ?? 0) + 1;
     }
 
-    const hash = await computeSessionHash(session);
+    let hash: string;
+    if (serverVerified) {
+      const serverHash = await fetchSessionHash(id);
+      hash = serverHash ?? (await computeSessionHash(session));
+    } else {
+      hash = await computeSessionHash(session);
+    }
 
-    setReport({ session, durationSec, eventCounts, hash });
+    setReport({ session, durationSec, eventCounts, hash, serverVerified });
     setLoading(false);
   }, []);
 
@@ -56,56 +102,21 @@ export function useReport(sessionId?: string) {
     const session = report.session;
 
     try {
-      // Push session to backend first (in case it's only stored locally)
-      await fetch(`${baseUrl}/api/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: session.id,
-          start: new Date(session.start).toISOString(),
-          end: session.end ? new Date(session.end).toISOString() : null,
-          mode: session.mode,
-          final_score: session.finalScore,
-          pct_focused: session.pctFocused,
-          verdict: session.verdict,
-          events: session.events.map((e) => ({
-            id: crypto.randomUUID(),
-            session_id: session.id,
-            event_type: e.eventType,
-            timestamp_s: e.timestampS,
-            confidence: e.confidence,
-            details: e.details,
-          })),
-          benchmark: session.benchmark
-            ? {
-                model_latency_ms: session.benchmark.modelLatencyMs,
-                inference_count: session.benchmark.inferenceCount,
-                pca_latency_ms: session.benchmark.pcaLatencyMs,
-                total_events: 0,
-              }
-            : null,
-        }),
-      });
-    } catch {
-      // Backend unreachable — will fall through to JSON export
-    }
-
-    try {
       const res = await fetch(`${baseUrl}/api/sessions/${session.id}/report`);
-      if (!res.ok) throw new Error('Download failed');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `proctoriq-${session.id.slice(0, 8)}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      return;
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `proctoriq-${session.id.slice(0, 8)}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
     } catch {
       // Backend PDF unavailable — export as JSON fallback
     }
 
-    // Fallback: export session data as JSON
     const fallbackData = {
       id: session.id,
       mode: session.mode,
@@ -115,7 +126,10 @@ export function useReport(sessionId?: string) {
       pctFocused: session.pctFocused,
       verdict: session.verdict,
       events: session.events,
-      note: 'PDF generation requires the backend to be running. This JSON contains the same session data.',
+      serverVerified: report.serverVerified,
+      note: report.serverVerified
+        ? 'This report data was fetched from the server.'
+        : 'PDF generation requires the backend to be running. This JSON contains the same session data.',
     };
     const blob = new Blob([JSON.stringify(fallbackData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);

@@ -5,9 +5,13 @@ from typing import cast
 from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from backend.core.session_store import InMemorySessionStore, SessionStore
 from backend.report.signing import verify_signature
+
+_verify_limiter = Limiter(key_func=get_remote_address, default_limits=["10/minute"])
 
 router = APIRouter(prefix="/verify", tags=["verify"])
 
@@ -38,8 +42,10 @@ async def verify_report(
 
 
 @router.get("/{session_id}")
+@_verify_limiter.limit("10/minute")
 async def get_session_hash(
     session_id: str,
+    request: Request,
     store: InMemorySessionStore = Depends(_get_store),
 ) -> dict[str, str]:
     session = await store.get_session(session_id)
