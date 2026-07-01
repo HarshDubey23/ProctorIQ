@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Gauge } from '../../components/ui/Gauge';
+import { ApertureGauge } from '../../components/ui/ApertureGauge';
 import { StatusPill, type StatusState } from '../../components/ui/StatusPill';
 import { useReducedMotion } from '../../lib/useReducedMotion';
 import { pillTransition } from '../../motion.config';
@@ -13,6 +13,7 @@ interface ProctorOverlayProps {
 
 export function ProctorOverlay({ score, attentionLabel, isVisible }: ProctorOverlayProps) {
   const reducedMotion = useReducedMotion();
+  const openness = score / 100;
 
   return (
     <motion.div
@@ -23,14 +24,19 @@ export function ProctorOverlay({ score, attentionLabel, isVisible }: ProctorOver
       aria-hidden={!isVisible}
     >
       <div
-        className="rounded-2xl bg-[rgba(10,22,40,0.85)] backdrop-blur-md border border-white/[0.08] p-3"
+        className="rounded-2xl p-3"
+        style={{
+          backgroundColor: 'var(--surface-2)',
+          border: '1px solid var(--hairline)',
+          boxShadow: 'var(--shadow-lg)',
+        }}
       >
         <div className="w-[100px]">
-          <Gauge score={score} attentionLabel={attentionLabel} />
+          <ApertureGauge openness={openness} size={100} />
         </div>
         <div className="flex items-center justify-center gap-2 mt-2">
-          <Eye size={12} className="text-text-muted" />
-          <span className="font-display text-[22px] leading-none tabular-nums text-text-primary">
+          <Eye size={12} style={{ color: 'var(--ink-faint)' }} />
+          <span className="font-display text-[22px] leading-none tabular-nums" style={{ color: 'var(--ink)' }}>
             {Math.round(score)}
           </span>
           <StatusPill state={attentionLabel as StatusState} />

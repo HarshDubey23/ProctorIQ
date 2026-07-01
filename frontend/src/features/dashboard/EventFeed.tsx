@@ -13,17 +13,17 @@ interface EventFeedProps {
 }
 
 const EVENT_COLORS: Record<string, string> = {
-  focused: 'border-l-signal-drowsy',
-  distracted: 'border-l-signal-alert',
-  absent: 'border-l-signal-absent',
-  drowsy: 'border-l-signal-drowsy',
-  multi: 'border-l-signal-multi',
-  tab_switch: 'border-l-signal-caution',
-  window_blur: 'border-l-signal-caution',
-  gaze_away: 'border-l-signal-alert',
+  focused: 'var(--jade)',
+  distracted: 'var(--ochre)',
+  absent: 'var(--clay)',
+  drowsy: 'var(--plum)',
+  multi: 'var(--clay)',
+  tab_switch: 'var(--ochre)',
+  window_blur: 'var(--ochre)',
+  gaze_away: 'var(--ochre)',
 };
 
-const EVENT_DEFAULT = 'border-l-signal-neutral';
+const EVENT_DEFAULT = 'var(--ink-faint)';
 
 function formatTime(ts: number): string {
   const d = new Date(ts);
@@ -46,13 +46,14 @@ export function EventFeed({ events }: EventFeedProps) {
 
   if (events.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl bg-white/[0.02] p-6">
-        <div className="h-8 w-8 rounded-full border-2 border-dashed border-white/[0.1]" />
-        <span className="font-sans text-[13px] text-text-muted italic">
+      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl p-6"
+        style={{ backgroundColor: 'var(--surface-1)' }}>
+        <div className="h-8 w-8 rounded-full border-2 border-dashed" style={{ borderColor: 'var(--hairline-strong)' }} />
+        <span className="font-sans text-sm italic" style={{ color: 'var(--ink-faint)' }}>
           No events yet
         </span>
-        <span className="font-sans text-[11px] text-text-muted">
-          Events will appear here during an active session
+        <span className="font-sans text-xs" style={{ color: 'var(--ink-faint)' }}>
+          Events appear here during an active session
         </span>
       </div>
     );
@@ -71,15 +72,19 @@ export function EventFeed({ events }: EventFeedProps) {
         return (
           <motion.div
             key={`${ev.timestamp}-${i}`}
-            className={`flex items-center gap-3 border-l-2 ${borderColor} bg-white/[0.02] pl-3 pr-2 py-1.5 rounded-r`}
+            className="flex items-center gap-3 pl-3 pr-2 py-1.5 rounded-r"
+            style={{
+              borderLeft: `3px solid ${borderColor}`,
+              backgroundColor: 'var(--surface-1)',
+            }}
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ ...itemTransition, delay: Math.min(i * staggerDelay, 0.5) }}
           >
-            <span className="font-mono text-[11px] tabular-nums text-text-mono shrink-0 w-14">
+            <span className="font-mono text-[11px] tabular-nums shrink-0 w-14" style={{ color: 'var(--ink-faint)' }}>
               {formatTime(ev.timestamp)}
             </span>
-            <span className="font-sans text-[13px] text-text-primary flex-1 truncate">
+            <span className="font-sans text-sm flex-1 truncate" style={{ color: 'var(--ink)' }}>
               {ev.message}
             </span>
           </motion.div>

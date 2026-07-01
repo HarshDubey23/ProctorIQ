@@ -8,32 +8,31 @@ export function BlinkIndicator({ earLeft, earRight }: BlinkIndicatorProps) {
   const isClosed = avg < 0.21;
 
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-white/[0.03] px-4 py-3">
+    <div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ backgroundColor: 'var(--surface-1)' }}>
       <div className="flex items-center gap-2">
         <div
-          className={`h-3 w-3 rounded-full transition-colors duration-200 ${
-            isClosed ? 'bg-signal-caution' : 'bg-signal-drowsy'
-          }`}
+          className="h-3 w-3 rounded-full transition-colors duration-200"
+          style={{ backgroundColor: isClosed ? 'var(--ochre)' : 'var(--jade)' }}
           aria-label={isClosed ? 'Eyes closed' : 'Eyes open'}
         />
-        <span className="font-sans text-[11px] uppercase tracking-[0.1em] text-text-secondary">
+        <span className="font-sans text-[11px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
           Eyes
         </span>
       </div>
       <div className="flex gap-4 ml-auto">
         <div className="text-center">
-          <div className="font-mono text-[13px] tabular-nums text-text-primary">
+          <div className="font-mono text-[13px] tabular-nums" style={{ color: 'var(--ink)' }}>
             {earLeft.toFixed(3)}
           </div>
-          <div className="font-sans text-[9px] uppercase tracking-[0.1em] text-text-muted">
+          <div className="font-sans text-[9px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-faint)' }}>
             L EAR
           </div>
         </div>
         <div className="text-center">
-          <div className="font-mono text-[13px] tabular-nums text-text-primary">
+          <div className="font-mono text-[13px] tabular-nums" style={{ color: 'var(--ink)' }}>
             {earRight.toFixed(3)}
           </div>
-          <div className="font-sans text-[9px] uppercase tracking-[0.1em] text-text-muted">
+          <div className="font-sans text-[9px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-faint)' }}>
             R EAR
           </div>
         </div>

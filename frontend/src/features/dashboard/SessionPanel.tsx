@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Square } from 'lucide-react';
-import { Gauge } from '../../components/ui/Gauge';
+import { ApertureGauge } from '../../components/ui/ApertureGauge';
 import { StatusPill, type StatusState } from '../../components/ui/StatusPill';
 import { ConfidenceBar } from '../../components/ui/ConfidenceBar';
 import { useWebcam } from '../selftest/useWebcam';
@@ -63,6 +63,7 @@ export function SessionPanel() {
 
   const attention = detectionResult?.attention ?? 'focused';
   const score = detectionResult ? computeAttentionScore(detectionResult) : 0;
+  const openness = score / 100;
   const sourceLabel = detectionResult?.source === 'ml' ? 'ML' : 'Rule-based';
   const confidence = detectionResult?.confidence ?? 0;
   const timerSeconds = session.metrics.duration;
@@ -70,23 +71,28 @@ export function SessionPanel() {
   const timerSecs = timerSeconds % 60;
 
   return (
-    <div className="flex h-full w-full flex-col p-4 lg:p-6 overflow-y-auto gap-4">
+    <div className="flex h-full w-full flex-col p-4 lg:p-6 overflow-y-auto gap-4"
+      style={{ backgroundColor: 'var(--surface-0)' }}>
       <video ref={videoRef} autoPlay playsInline muted className="sr-only" aria-hidden="true" />
 
       <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
         <div className="flex flex-col gap-4 lg:w-[40%]">
           <div className="flex items-center gap-4">
             <div className="w-48 shrink-0">
-              <Gauge score={score} attentionLabel={attention} />
+              <ApertureGauge openness={openness} size={180} />
             </div>
             <div className="flex flex-col gap-2">
               <ScoreReadout score={score} />
               <StatusPill state={attention as StatusState} />
               <ConfidenceBar value={confidence} />
-              <span className="rounded-full bg-white/[0.05] px-2 py-0.5 font-mono text-[10px] tabular-nums text-text-mono text-center">
+              <span className="rounded-full px-2 py-0.5 font-mono text-[10px] tabular-nums text-center"
+                style={{
+                  backgroundColor: 'rgba(46,76,140,0.1)',
+                  color: 'var(--cobalt)',
+                }}>
                 {sourceLabel}
               </span>
-              <div className="font-mono text-[22px] tabular-nums text-text-mono text-center">
+              <div className="font-mono text-[22px] tabular-nums text-center" style={{ color: 'var(--ink)' }}>
                 {String(timerMins).padStart(2, '0')}:{String(timerSecs).padStart(2, '0')}
               </div>
             </div>
@@ -101,10 +107,10 @@ export function SessionPanel() {
               suffix="%"
               color={
                 session.metrics.avgScore >= 80
-                  ? 'text-signal-drowsy'
+                  ? 'var(--jade)'
                   : session.metrics.avgScore >= 50
-                    ? 'text-signal-caution'
-                    : 'text-signal-multi'
+                    ? 'var(--ochre)'
+                    : 'var(--clay)'
               }
             />
             <MetricCounter
@@ -133,7 +139,7 @@ export function SessionPanel() {
             <AttentionChart data={session.history} />
           </div>
           <div className="flex-1 min-h-32">
-            <h3 className="font-sans text-[11px] uppercase tracking-[0.12em] text-text-secondary mb-2">
+            <h3 className="font-sans text-[11px] uppercase tracking-[0.12em] mb-2" style={{ color: 'var(--ink-muted)' }}>
               Event Feed
             </h3>
             <EventFeed events={events} />
@@ -141,13 +147,17 @@ export function SessionPanel() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-t border-white/[0.06] pt-4">
+      <div className="flex items-center justify-between pt-4" style={{ borderTop: '1px solid var(--hairline)' }}>
         <motion.button
-          className={`flex items-center gap-2 rounded-xl px-5 py-3 font-sans text-[13px] uppercase tracking-[0.1em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus] ${
-            session.state === 'running'
-              ? 'bg-signal-multi/[0.15] text-signal-multi hover:bg-signal-multi/[0.25]'
-              : 'bg-signal-drowsy/[0.12] text-signal-drowsy hover:bg-signal-drowsy/[0.22]'
-          }`}
+          className="flex items-center gap-2 rounded-xl px-5 py-3 font-sans text-[13px] uppercase tracking-[0.1em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+          style={{
+            backgroundColor: session.state === 'running'
+              ? 'rgba(166,61,47,0.15)'
+              : 'rgba(14,107,92,0.12)',
+            color: session.state === 'running'
+              ? 'var(--clay)'
+              : 'var(--jade)',
+          }}
           whileTap={{ scale: 0.96 }}
           onClick={session.state === 'running' ? handleStop : handleStart}
           aria-label={session.state === 'running' ? 'Stop session' : 'Start session'}
@@ -156,7 +166,7 @@ export function SessionPanel() {
           {session.state === 'running' ? 'Stop' : 'Start'}
         </motion.button>
 
-        <div className="flex items-center gap-4 text-[10px] text-text-muted font-sans">
+        <div className="flex items-center gap-4 text-[10px] font-sans" style={{ color: 'var(--ink-faint)' }}>
           <span>
             Face count: {detectionResult?.faceCount ?? 0}
             {isDemo ? ' · Demo mode' : ''}
@@ -164,7 +174,7 @@ export function SessionPanel() {
           </span>
           {session.state === 'running' && (
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-signal-drowsy animate-pulse" />
+              <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--jade)' }} />
               Recording
             </span>
           )}
