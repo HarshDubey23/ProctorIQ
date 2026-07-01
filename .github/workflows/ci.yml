@@ -18,6 +18,7 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
+          pip install ruff mypy
       - name: Lint with ruff
         run: cd backend && ruff check .
       - name: Type check with mypy
