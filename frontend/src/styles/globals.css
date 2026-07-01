@@ -1,3 +1,8 @@
+/* Font imports — self-hosted to avoid FOUC and external network deps */
+@import '@fontsource-variable/fraunces';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/martian-mono';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -18,9 +23,12 @@
   body {
     margin: 0;
     padding: 0;
-    font-family: 'Inter', system-ui, sans-serif;
-    background-color: var(--bg-neutral);
-    color: var(--text-primary);
+    font-family: 'Inter Variable', system-ui, sans-serif;
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    letter-spacing: -0.01em;
+    background-color: var(--surface-0);
+    color: var(--ink);
     overflow: hidden;
     height: 100vh;
     width: 100vw;
@@ -32,13 +40,13 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--signal-focus);
+    outline: 2px solid var(--jade);
     outline-offset: 2px;
   }
 
   ::selection {
-    background-color: var(--signal-focus);
-    color: var(--bg-neutral);
+    background-color: var(--jade);
+    color: #FFFFFF;
   }
 
   [aria-hidden='true'] {
@@ -51,11 +59,26 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* --- Typeface utility classes --- */
   .font-display {
-    font-family: 'Anton', sans-serif;
+    font-family: 'Fraunces Variable', 'Lora', 'Source Serif 4', Georgia, serif;
+    font-variation-settings: 'opsz' 72;
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .font-display-sm {
+    font-family: 'Fraunces Variable', 'Lora', 'Source Serif 4', Georgia, serif;
+    font-variation-settings: 'opsz' 36;
+  }
+
+  .font-sans {
+    font-family: 'Inter Variable', system-ui, sans-serif;
+    letter-spacing: -0.01em;
   }
 
   .font-mono {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'Martian Mono Variable', 'JetBrains Mono', 'Fira Code', monospace;
+    letter-spacing: var(--tracking-mono);
+    font-variant-numeric: tabular-nums;
   }
 }

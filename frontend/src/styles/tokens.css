@@ -1,26 +1,152 @@
+/*
+ * APERTURE DESIGN SYSTEM — ProctorIQ Token Definitions
+ *
+ * Reasoning: ProctorIQ's actual mechanism is optical — a lens,
+ * calibrated light, measured precision.  The visual language should
+ * feel like a premium optical instrument (think: the materials
+ * language of a well-made camera or a Leica/Zeiss product page)
+ * executed with Apple-level restraint — generous whitespace,
+ * confident but quiet typography, color used with real semantic
+ * purpose rather than decoration.
+ *
+ * LIGHT MODE  ("Titanium") — brushed-metal cool neutrals.
+ * DARK MODE   ("Night Session") — warm charcoal, same undertone
+ *              family as light-mode ink, not navy.
+ * SEMANTIC    — six jewel-toned colors, each with exactly one job.
+ * TYPOGRAPHY  — three typefaces (display serif / UI sans / data mono)
+ *              each earning its role with a stated reason.
+ */
+
+/* ================================================================
+   1. SURFACES — Light Mode ("Titanium")
+   ================================================================ */
 :root {
-  --bg-neutral: #111827;
-  --bg-focused: #0F1E2D;
-  --bg-distracted: #1E140A;
-  --bg-absent: #0F0F1E;
-  --bg-multi: #1A0A10;
+  /* --- Page / chrome --- */
+  --surface-0: #EEF0F0;
+  /* Cards, panels, elevated surfaces */
+  --surface-1: #F9FAFA;
+  /* Modal, popover, dialog */
+  --surface-2: #FFFFFF;
+  /* Separators / rules */
+  --hairline: rgba(20, 24, 26, 0.08);
+  --hairline-strong: rgba(20, 24, 26, 0.16);
 
-  --panel-neutral: #1C2430;
-  --panel-focused: #172335;
-  --panel-distracted: #271A0E;
-  --panel-absent: #141428;
-  --panel-multi: #211018;
+  /* --- Text --- */
+  --ink: #14181A;
+  --ink-muted: #5A6366;
+  --ink-faint: #9CA3A5;
 
-  --signal-focus: #38BDF8;
-  --signal-alert: #FB923C;
-  --signal-absent: #A78BFA;
-  --signal-multi: #F472B6;
-  --signal-neutral: #64748B;
-  --signal-caution: #FCD34D;
-  --signal-drowsy: #34D399;
+  /* --- Brand / Primary CTA / "focused" attention state ---
+       Jade: calm, in-control, correct. The aspirational color. */
+  --jade: #0E6B5C;
 
-  --text-primary: #F1F5F9;
-  --text-secondary: #94A3B8;
-  --text-muted: #475569;
-  --text-mono: #7DD3FC;
+  /* --- "distracted" attention state only ---
+       Ochre: warm alert, not alarm. A cue to return focus. */
+  --ochre: #B8763A;
+
+  /* --- "drowsy" attention state only ---
+       Plum: deliberately a different hue family from ochre —
+       drowsiness is a qualitatively different concern than
+       distraction, so it gets its own hue, not a shade. */
+  --plum: #6B5178;
+
+  /* --- "absent" / critical / FLAGGED verdict only ---
+       Clay: urgent but not alarmist. Stops the reader without panic. */
+  --clay: #A63D2F;
+
+  /* --- Verification / cryptographic-trust UI only ---
+       Cobalt: never used for attention states — this color means
+       "this claim is authenticated." */
+  --cobalt: #2E4C8C;
+
+  /* --- Gold: reserved ONLY for the signed-report "seal" moment ---
+       Think wax-seal / certificate-of-authenticity, modernized.
+       Must never appear in the same view as --ochre to avoid
+       visual confusion; only appears in report/results verification. */
+  --gold: #C9A24B;
+
+  /* --- Shadows (light mode) --- */
+  --shadow-sm: 0 1px 2px rgba(20, 24, 26, 0.04);
+  --shadow-md: 0 4px 16px rgba(20, 24, 26, 0.06);
+  --shadow-lg: 0 8px 32px rgba(20, 24, 26, 0.08);
+  --shadow-xl: 0 16px 48px rgba(20, 24, 26, 0.10);
+
+  /* ================================================================
+     2. TYPE SCALE — 1.25 ratio (Minor Third)
+     ================================================================ */
+  --text-xs: 0.64rem;
+  --text-sm: 0.8rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.563rem;
+  --text-2xl: 1.953rem;
+  --text-3xl: 2.441rem;
+  --text-4xl: 3.052rem;
+  --text-5xl: 3.815rem;
+  --text-6xl: 4.768rem;
+
+  /* --- Line heights --- */
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* --- Letter spacing --- */
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.025em;
+  --tracking-mono: 0.05em;
+}
+
+/* ================================================================
+   3. SURFACES — Dark Mode ("Night Session")
+   A real, separate design pass, not an auto-inverted filter.
+   Re-derived with sufficient contrast on dark surfaces,
+   desaturated slightly, lightness lifted.
+   ================================================================ */
+[data-theme='dark'] {
+  --surface-0: #16191B;
+  --surface-1: #1E2225;
+  --surface-2: #262B2E;
+  --hairline: rgba(237, 239, 239, 0.08);
+  --hairline-strong: rgba(237, 239, 239, 0.16);
+
+  --ink: #EDEFEF;
+  --ink-muted: #A3ABAD;
+  --ink-faint: #6B7376;
+
+  /* Dark-adjusted semantic colors — desaturated, lifted lightness */
+  --jade: #15967D;
+  --ochre: #D49455;
+  --plum: #8F6F9E;
+  --clay: #C85544;
+  --cobalt: #4A6FBF;
+  --gold: #D8B55A;
+
+  /* Shadows (dark mode — use light-on-dark shadows) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+/* ================================================================
+   4. OPACITY / STATE UTILITIES
+   ================================================================ */
+:root {
+  --opacity-disabled: 0.4;
+  --opacity-hover: 0.08;
+  --opacity-active: 0.12;
+}
+
+/* ================================================================
+   5. BORDERS / RADII
+   ================================================================ */
+:root {
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+  --border-width: 1px;
 }
