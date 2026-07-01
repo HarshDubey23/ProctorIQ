@@ -31,6 +31,18 @@ Privacy-first attention and exam-integrity analytics. In-browser ML via WebAssem
 
 ---
 
+## Design Direction — "Aperture"
+
+ProctorIQ's mechanism is optical — a lens, calibrated light, measured precision. The **Aperture** design language mirrors this with a visual system inspired by premium optical instruments (Leica, Zeiss) executed with restraint:
+
+- **Titanium neutrals** — Cool brushed-metal light grays (`#EEF0F0`) in light mode; warm charcoal (`#16191B`) in dark mode ("Night Session"). Neither cream/warm nor navy/cool — a deliberate third path.
+- **Six-color semantic palette** — Each color has exactly one job: jade (focused/CTA), ochre (distracted), plum (drowsy), clay (absent/critical), cobalt (verification/trust), gold (seal/authenticity — appears only once per session).
+- **Three-typeface system** — Fraunces (display serif for verdicts and large scores), Inter Variable (UI sans for body text), Martian Mono (data mono for timestamps, hashes, coordinates). Each earns its place with a stated reason.
+- **ApertureGauge signature component** — An 8-blade camera-iris diaphragm that replaces conventional circular gauges. Blade openness maps to attention confidence; blade color interpolates through the semantic palette in OKLCH space. Framer Motion spring physics give it a weighted mechanical feel.
+- **Filmstrip timeline** — Session timeline uses sprocket-hole details and segment-state coloring for direct parity with the PDF report's timeline.
+
+This is not a generic dark/cyan "AI dashboard." Every color, typeface, and motion choice ties back to the product's actual mechanism — calibrated optical measurement.
+
 ## Screenshots
 
 <img src="docs/images/self-test-panel.png" alt="Self-test panel showing webcam preview, live attention gauge, landmark overlay, and auto-calibration metrics" width="720">
