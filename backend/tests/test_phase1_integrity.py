@@ -133,7 +133,7 @@ class TestServerSideScoringOverride:
             })
 
             # Directly inject events into the store
-            store: InMemorySessionStore = app.state.session_store  # type: ignore[attr-defined]
+            store: InMemorySessionStore = app.state.session_store
             import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -354,7 +354,7 @@ class TestCleanupTasks:
                 "mode": "exam",
             })
 
-            store: InMemorySessionStore = app.state.session_store  # type: ignore[attr-defined]
+            store: InMemorySessionStore = app.state.session_store
             import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -458,6 +458,7 @@ class TestExamFlowIntegration:
             FlagEvent(event_type=e.event_type, timestamp_s=e.timestamp_s)
             for e in fetched.events
         ]
+        assert fetched.end is not None
         duration_s = int((fetched.end - fetched.start).total_seconds())
         result = compute_attention_score(flag_events, duration_s)
 
@@ -506,6 +507,7 @@ class TestExamFlowIntegration:
         # Simulate what get_session_report does
         fetched = await store.get_session("exam-pdf-consistency")
         assert fetched is not None
+        assert fetched.end is not None
         flag_events = [
             FlagEvent(event_type=e.event_type, timestamp_s=e.timestamp_s)
             for e in fetched.events
