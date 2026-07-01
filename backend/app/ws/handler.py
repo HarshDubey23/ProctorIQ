@@ -12,7 +12,6 @@ from pydantic import ValidationError
 
 from backend.core.session_store import SessionStore
 from backend.core.room_store import InMemoryRoomStore
-from backend.cv.ear import compute_ear
 from backend.cv.kalman import EarKalman, HeadPoseKalman
 from backend.models.room import RoomMember
 from backend.models.session import BenchmarkResult, Event
