@@ -69,3 +69,5 @@ class WsOutboundTick(BaseModel):
     running_score: float
     room_id: str | None = None
     display_name: str | None = None
+    client_ear_raw: float = 0.0
+    ear_divergence: float = 0.0

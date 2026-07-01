@@ -38,6 +38,10 @@ class ConnectionState:
     room_id: str | None = None
     display_name: str | None = None
 
+    # Anti-spoofing: track both raw client EAR and server-derived Kalman EAR
+    client_ear_raw: float = 0.0
+    ear_divergence: float = 0.0
+
     # Server-side Kalman smoothers — give a second opinion on client data
     ear_kalman: EarKalman = field(default_factory=EarKalman)
     pose_kalman: HeadPoseKalman = field(default_factory=HeadPoseKalman)
@@ -67,6 +71,8 @@ async def _send_ticks(
             running_score=state.running_score,
             room_id=room_id,
             display_name=display_name,
+            client_ear_raw=state.client_ear_raw,
+            ear_divergence=state.ear_divergence,
         )
         state.events_buffer.clear()
 
@@ -99,13 +105,19 @@ async def _handle_flag(
     state: ConnectionState,
     store: SessionStore,
 ) -> None:
+    enriched_details = dict(ev.details) if ev.details else {}
+    if state.ear_divergence > 0.0:
+        enriched_details["ear_divergence"] = round(state.ear_divergence, 4)
+        enriched_details["client_ear_raw"] = round(state.client_ear_raw, 4)
+        enriched_details["server_ear"] = round(state.ear, 4)
+
     event = Event(
         id=uuid4().hex,
         session_id=session_id,
         event_type=ev.event_type,
         timestamp_s=ev.timestamp_s,
         confidence=ev.confidence,
-        details=ev.details,
+        details=enriched_details,
     )
     try:
         await store.add_event(session_id, event)
@@ -138,7 +150,28 @@ async def _handle_state(ev: WsStateEvent, state: ConnectionState) -> None:
     state.pose_kalman.predict()
     smoothed = state.pose_kalman.update(np.array([client_yaw, client_pitch, client_roll]))
 
+    # Store both raw and server-derived EAR for anti-spoofing
+    state.client_ear_raw = client_ear
     state.ear = server_ear
+
+    # Compute EAR divergence threshold check
+    EAR_DIVERGENCE_THRESHOLD = 0.08
+    divergence = abs(client_ear - server_ear)
+    state.ear_divergence = divergence
+
+    # Log divergence to the event buffer when it exceeds threshold
+    if divergence > EAR_DIVERGENCE_THRESHOLD:
+        state.events_buffer.append({
+            "event_type": "ear_divergence",
+            "timestamp_s": time.time(),
+            "confidence": None,
+            "details": {
+                "client_ear": round(client_ear, 4),
+                "server_ear": round(server_ear, 4),
+                "divergence": round(divergence, 4),
+                "note": "Client-reported EAR diverges from server-side Kalman estimate — possible spoofing",
+            },
+        })
 
     # Build head_pose dict with both client and server values
     state.head_pose = {

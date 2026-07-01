@@ -43,6 +43,7 @@ async def create_session(
         start=start,
         end=body.end,
         mode=body.mode,
+        quiz_score=body.quiz_score,
         benchmark=body.benchmark,
     )
     return await store.create_session(session)
@@ -130,6 +131,10 @@ async def get_session_report(
     session.final_score = score_result.score
     session.pct_focused = pct_focused
     session.verdict = verdict
+
+    # Persist the computed scores back to the store so GET /api/sessions/{id}
+    # and the session list reflect the same values as the downloaded report.
+    await store.update_session(session)
 
     recent = await store.list_sessions(limit=5)
     pdf_bytes = generate_session_pdf(session, recent_sessions=recent)

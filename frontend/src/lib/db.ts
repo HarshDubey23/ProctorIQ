@@ -18,6 +18,7 @@ export interface StoredSession {
   start: number;
   end: number | null;
   mode: string;
+  quizScore: number | null;
   finalScore: number | null;
   pctFocused: number | null;
   verdict: string | null;

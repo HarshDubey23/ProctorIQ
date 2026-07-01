@@ -35,6 +35,7 @@ def sign_session(session: Session, secret: str | None = None) -> str:
         "start": session.start.isoformat() if session.start else None,
         "end": session.end.isoformat() if session.end else None,
         "mode": session.mode,
+        "quiz_score": session.quiz_score,
         "final_score": session.final_score,
         "pct_focused": session.pct_focused,
         "verdict": session.verdict.value if session.verdict else None,

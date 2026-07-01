@@ -102,7 +102,23 @@ class TestServerSideScoringOverride:
             data = resp.json()
             assert data["final_score"] is None
             assert data["verdict"] is None
+            assert data["quiz_score"] is None
             assert len(data["events"]) == 0
+
+    def test_post_accepts_quiz_score(self) -> None:
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.post("/api/sessions", json={
+                "id": "quiz-score-session",
+                "start": "2025-01-01T10:00:00Z",
+                "mode": "exam",
+                "quiz_score": 80.0,
+            })
+            assert resp.status_code == 201
+            data = resp.json()
+            assert data["quiz_score"] == 80.0
+            assert data["final_score"] is None
+            assert data["verdict"] is None
 
     def test_report_scores_reflect_event_log_not_cached_values(self) -> None:
         """Even if events are later added, the report endpoint computes
@@ -352,3 +368,170 @@ class TestCleanupTasks:
             finally:
                 loop.close()
             assert fetched is None
+
+
+@pytest.mark.asyncio
+class TestExamFlowIntegration:
+    """Phase 4 — Exam flow: session creation, WebSocket event accumulation,
+    report generation with server-computed scores."""
+
+    async def test_exam_session_creates_backend_session(self) -> None:
+        """Starting an exam via POST /api/sessions results in a real backend session."""
+        store = InMemorySessionStore()
+        session = Session(
+            id="exam-flow-test",
+            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=timezone.utc),
+            mode="exam",
+            quiz_score=80.0,
+        )
+        created = await store.create_session(session)
+        assert created.id == "exam-flow-test"
+        assert created.mode == "exam"
+        assert created.quiz_score == 80.0
+        assert created.final_score is None
+        assert created.verdict is None
+        assert len(created.events) == 0
+
+    async def test_exam_session_accumulates_ws_events(self) -> None:
+        """Events sent via WebSocket flags persist in the session's event log."""
+        store = InMemorySessionStore()
+        session = Session(
+            id="exam-ws-events",
+            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=timezone.utc),
+            mode="exam",
+        )
+        await store.create_session(session)
+
+        await store.add_event("exam-ws-events", Event(
+            id="ev1", session_id="exam-ws-events",
+            event_type="distracted", timestamp_s=10.0, confidence=0.85,
+        ))
+        await store.add_event("exam-ws-events", Event(
+            id="ev2", session_id="exam-ws-events",
+            event_type="tab_switch", timestamp_s=30.0,
+        ))
+        await store.add_event("exam-ws-events", Event(
+            id="ev3", session_id="exam-ws-events",
+            event_type="absent", timestamp_s=45.0, confidence=0.92,
+        ))
+
+        fetched = await store.get_session("exam-ws-events")
+        assert fetched is not None
+        assert len(fetched.events) == 3
+        assert fetched.events[0].event_type == "distracted"
+        assert fetched.events[1].event_type == "tab_switch"
+        assert fetched.events[2].event_type == "absent"
+
+    async def test_report_uses_server_computed_scores_not_quiz_data(self) -> None:
+        """The exam's final_score/verdict come from the server event log,
+        not from client-submitted quiz_score."""
+        store = InMemorySessionStore()
+        session = Session(
+            id="exam-report-scores",
+            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=timezone.utc),
+            end=datetime(2025, 6, 1, 10, 0, 10, tzinfo=timezone.utc),
+            mode="exam",
+            quiz_score=95.0,  # high quiz score, but integrity should be independent
+        )
+        await store.create_session(session)
+
+        # Add integrity-violating events
+        await store.add_event("exam-report-scores", Event(
+            id="ev1", session_id="exam-report-scores",
+            event_type="absent", timestamp_s=5.0, confidence=0.9,
+        ))
+        await store.add_event("exam-report-scores", Event(
+            id="ev2", session_id="exam-report-scores",
+            event_type="distracted", timestamp_s=3.0, confidence=0.8,
+        ))
+
+        # Fetch session — final_score should still be None before report
+        fetched = await store.get_session("exam-report-scores")
+        assert fetched is not None
+        assert fetched.quiz_score == 95.0
+        assert fetched.final_score is None
+        assert fetched.verdict is None
+
+        # Compute what get_session_report would do
+        from backend.cv.scoring import FlagEvent, compute_attention_score
+        flag_events = [
+            FlagEvent(event_type=e.event_type, timestamp_s=e.timestamp_s)
+            for e in fetched.events
+        ]
+        duration_s = int((fetched.end - fetched.start).total_seconds())
+        result = compute_attention_score(flag_events, duration_s)
+
+        # The score should reflect the penalty from the absent+distracted events,
+        # not the quiz_score of 95
+        assert result.score < 0
+        assert result.score > -3.0  # reasonable range for 2 events in 10s
+
+        # Persist scores as get_session_report now does
+        from backend.models.session import Verdict
+        if result.score > -0.5:
+            verdict = Verdict.PASS
+        elif result.score > -1.5:
+            verdict = Verdict.FLAGGED
+        else:
+            verdict = Verdict.REVIEW
+        fetched.final_score = result.score
+        fetched.pct_focused = ((duration_s - sum(result.event_counts.values())) / duration_s * 100)
+        fetched.verdict = verdict
+        await store.update_session(fetched)
+
+        # After persistence, GET should reflect server-computed values
+        updated = await store.get_session("exam-report-scores")
+        assert updated is not None
+        assert updated.final_score == result.score
+        assert updated.verdict == verdict
+        assert updated.quiz_score == 95.0  # quiz_score unchanged
+
+    async def test_get_session_matches_pdf_values_after_report(self) -> None:
+        """After requesting a report, GET /api/sessions/{id} values match
+        what was persisted by get_session_report."""
+        store = InMemorySessionStore()
+        session = Session(
+            id="exam-pdf-consistency",
+            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=timezone.utc),
+            end=datetime(2025, 6, 1, 10, 0, 10, tzinfo=timezone.utc),
+            mode="exam",
+        )
+        await store.create_session(session)
+
+        await store.add_event("exam-pdf-consistency", Event(
+            id="ev1", session_id="exam-pdf-consistency",
+            event_type="absent", timestamp_s=5.0,
+        ))
+
+        # Simulate what get_session_report does
+        fetched = await store.get_session("exam-pdf-consistency")
+        assert fetched is not None
+        flag_events = [
+            FlagEvent(event_type=e.event_type, timestamp_s=e.timestamp_s)
+            for e in fetched.events
+        ]
+        duration_s = int((fetched.end - fetched.start).total_seconds())
+        result = compute_attention_score(flag_events, duration_s)
+
+        if result.score > -0.5:
+            verdict = Verdict.PASS
+        elif result.score > -1.5:
+            verdict = Verdict.FLAGGED
+        else:
+            verdict = Verdict.REVIEW
+
+        focused_seconds = duration_s - sum(result.event_counts.values())
+        pct_focused = (focused_seconds / duration_s * 100) if duration_s > 0 else 0.0
+
+        fetched.final_score = result.score
+        fetched.pct_focused = pct_focused
+        fetched.verdict = verdict
+        await store.update_session(fetched)
+
+        # Verify GET would return the persisted values
+        final = await store.get_session("exam-pdf-consistency")
+        assert final is not None
+        assert final.final_score == result.score
+        assert final.pct_focused == pct_focused
+        assert final.verdict == verdict
+

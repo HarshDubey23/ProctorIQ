@@ -9,54 +9,9 @@ import { useWebcam } from '../selftest/useWebcam';
 import { useDetection, computeAttentionScore } from '../selftest/useDetection';
 import { useReducedMotion } from '../../lib/useReducedMotion';
 import { StatusPill, type StatusState } from '../../components/ui/StatusPill';
-import { computeSessionHash } from '../../lib/signing';
+import { fetchSessionHash, computeSessionHash } from '../../lib/signing';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-
-function mapFrontendEvent(e: { type: string; timestamp: number; details?: string }, startTime: number) {
-  return {
-    event_type: e.type,
-    timestamp_s: Math.floor((e.timestamp - startTime) / 1000),
-    confidence: null,
-  };
-}
-
-async function postSessionToBackend(sessionData: {
-  id: string;
-  start: number;
-  end: number;
-  mode: string;
-  finalScore: number | null;
-  pctFocused: number | null;
-  verdict: string | null;
-  events: ReturnType<typeof mapFrontendEvent>[];
-}): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE}/api/sessions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: sessionData.id,
-        start: new Date(sessionData.start).toISOString(),
-        end: new Date(sessionData.end).toISOString(),
-        mode: sessionData.mode,
-        final_score: sessionData.finalScore,
-        pct_focused: sessionData.pctFocused,
-        verdict: sessionData.verdict,
-        events: sessionData.events.map((e) => ({
-          id: crypto.randomUUID(),
-          session_id: sessionData.id,
-          event_type: e.event_type,
-          timestamp_s: e.timestamp_s,
-          confidence: e.confidence,
-        })),
-      }),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 
 export function ExamPanel() {
   const {
@@ -77,6 +32,7 @@ export function ExamPanel() {
     nextQuestion,
     prevQuestion,
     submit,
+    wsTick,
   } = useExamSession();
 
   const EXAM_DURATION = 15 * 60;
@@ -89,7 +45,9 @@ export function ExamPanel() {
     isDemo,
   });
   const [reportHash, setReportHash] = useState('');
-  const hashComputedRef = useRef(false);
+  const [hashLoading, setHashLoading] = useState(false);
+  const [serverVerified, setServerVerified] = useState(false);
+  const hashFetchedRef = useRef(false);
   const startTimeRef = useRef(0);
 
   useEffect(() => {
@@ -98,8 +56,14 @@ export function ExamPanel() {
   }, [state]);
 
   useEffect(() => {
-    if (state !== 'results' || hashComputedRef.current) return;
-    hashComputedRef.current = true;
+    if (state !== 'in_progress' || !wsTick) return;
+    wsTick(detectionResult);
+  }, [detectionResult, state, wsTick]);
+
+  useEffect(() => {
+    if (state !== 'results' || hashFetchedRef.current) return;
+    hashFetchedRef.current = true;
+    setHashLoading(true);
 
     const storedEvents = events.map((e) => ({
       eventType: e.type,
@@ -107,40 +71,35 @@ export function ExamPanel() {
       confidence: null,
     }));
 
-    const finalScore = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
-    const verdict = finalScore >= 80 ? 'PASS' : finalScore >= 50 ? 'REVIEW' : 'FLAGGED';
-
     const sessionData = {
       id: sessionId,
       start: startTimeRef.current,
       end: submittedAt ?? Date.now(),
       mode: 'exam' as const,
-      finalScore,
+      finalScore: null,
       pctFocused: null,
-      verdict,
+      verdict: null,
       events: storedEvents,
     };
 
-    computeSessionHash({
-      id: sessionData.id,
-      start: sessionData.start,
-      end: sessionData.end,
-      mode: sessionData.mode,
-      finalScore: sessionData.finalScore,
-      pctFocused: sessionData.pctFocused,
-      verdict: sessionData.verdict,
-      events: storedEvents,
-    }).then(setReportHash);
-
-    postSessionToBackend({
-      ...sessionData,
-      events: events.map((e) => mapFrontendEvent(e, startTimeRef.current)),
+    fetchSessionHash(sessionId).then((hash) => {
+      if (hash) {
+        setReportHash(hash);
+        setServerVerified(true);
+        setHashLoading(false);
+      } else {
+        computeSessionHash(sessionData).then(setReportHash);
+        setServerVerified(false);
+        setHashLoading(false);
+      }
     });
   }, [state, answers, events, submittedAt, correctCount, totalQuestions, sessionId]);
 
   const handleRetake = useCallback(() => {
-    hashComputedRef.current = false;
+    hashFetchedRef.current = false;
     setReportHash('');
+    setServerVerified(false);
+    setHashLoading(false);
     resetExam();
   }, [resetExam]);
 
@@ -173,6 +132,10 @@ export function ExamPanel() {
       correctCount,
       totalQuestions,
       reportHash,
+      serverVerified,
+      note: serverVerified
+        ? 'This report data was fetched from the server.'
+        : 'PDF generation requires the backend to be running. This JSON contains the same session data.',
       timestamp: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -182,7 +145,7 @@ export function ExamPanel() {
     a.download = `proctoriq-report-${sessionId.slice(0, 8)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [answers, events, submittedAt, correctCount, totalQuestions, reportHash, sessionId]);
+  }, [answers, events, submittedAt, correctCount, totalQuestions, reportHash, sessionId, serverVerified]);
 
   const currentQuestion = QUESTIONS[currentQuestionIndex];
   const currentAnswer = answers.find((a) => a.questionId === currentQuestion?.id);
@@ -239,7 +202,7 @@ export function ExamPanel() {
             >
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-signal-focus border-t-transparent" />
               <span className="font-sans text-[13px] text-text-secondary">
-                Requesting camera permission…
+                Requesting camera permission...
               </span>
             </motion.div>
           )}
@@ -353,7 +316,7 @@ export function ExamPanel() {
                 <div className="flex items-center justify-center gap-2 bg-signal-caution/[0.1] py-1">
                   <Eye size={12} className="text-signal-caution" />
                   <span className="font-sans text-[10px] text-signal-caution">
-                    DEMO — proctoring data is simulated
+                    DEMO -- proctoring data is simulated
                   </span>
                 </div>
               )}
@@ -371,7 +334,7 @@ export function ExamPanel() {
             >
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-signal-drowsy border-t-transparent" />
               <span className="font-sans text-[13px] text-text-secondary">
-                Computing results…
+                Computing results...
               </span>
             </motion.div>
           )}
@@ -389,6 +352,8 @@ export function ExamPanel() {
                 events={events}
                 submittedAt={submittedAt}
                 reportHash={reportHash}
+                hashLoading={hashLoading}
+                serverVerified={serverVerified}
                 onDownloadReport={handleDownloadReport}
                 onRetake={handleRetake}
               />
@@ -413,5 +378,3 @@ export function ExamPanel() {
     </div>
   );
 }
-
-

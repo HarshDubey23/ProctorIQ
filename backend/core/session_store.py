@@ -79,6 +79,7 @@ class InMemorySessionStore:
                         start=session.start,
                         end=session.end,
                         mode=session.mode,
+                        quiz_score=session.quiz_score,
                         final_score=session.final_score,
                         pct_focused=session.pct_focused,
                         verdict=session.verdict,

@@ -33,6 +33,7 @@ export async function computeSessionHash(session: {
   start: number | null;
   end: number | null;
   mode: string;
+  quizScore?: number | null;
   finalScore: number | null;
   pctFocused: number | null;
   verdict: string | null;
@@ -63,6 +64,7 @@ export async function computeSessionHash(session: {
     start: toISO(session.start),
     end: toISO(session.end),
     mode: session.mode,
+    quiz_score: session.quizScore ?? null,
     final_score: session.finalScore,
     pct_focused: session.pctFocused,
     verdict: session.verdict,

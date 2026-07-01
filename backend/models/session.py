@@ -41,6 +41,10 @@ class Session(BaseModel):
     start: datetime
     end: datetime | None = None
     mode: str
+    quiz_score: float | None = Field(
+        default=None,
+        description="Exam correctness percentage (e.g. 80 for 80%) — set client-side, not an integrity metric",
+    )
     final_score: float | None = Field(
         default=None,
         description="Server-derived aggregate score — not client-input",
@@ -72,6 +76,10 @@ class SessionCreate(BaseModel):
     start: datetime | None = None
     end: datetime | None = None
     mode: str = "selftest"
+    quiz_score: float | None = Field(
+        default=None,
+        description="Exam correctness percentage — set by client, distinct from server integrity score",
+    )
     benchmark: BenchmarkResult | None = None
 
 
@@ -91,6 +99,7 @@ class SessionSummary(BaseModel):
     start: datetime
     end: datetime | None
     mode: str
+    quiz_score: float | None = None
     final_score: float | None
     pct_focused: float | None
     verdict: Verdict | None

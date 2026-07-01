@@ -7,7 +7,7 @@ import {
   computeProctorIQ,
   computeVerdict,
 } from './types';
-import { Check, X, Download, RotateCcw } from 'lucide-react';
+import { Check, X, Download, RotateCcw, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { itemTransition } from '../../motion.config';
 
 interface ResultsScreenProps {
@@ -15,6 +15,8 @@ interface ResultsScreenProps {
   events: ProctorEvent[];
   submittedAt: number;
   reportHash: string;
+  hashLoading: boolean;
+  serverVerified: boolean;
   onDownloadReport: () => void;
   onRetake: () => void;
 }
@@ -64,6 +66,8 @@ export function ResultsScreen({
   events,
   submittedAt: _submittedAt,
   reportHash,
+  hashLoading,
+  serverVerified,
   onDownloadReport,
   onRetake,
 }: ResultsScreenProps) {
@@ -152,7 +156,7 @@ export function ResultsScreen({
                           : 'bg-signal-multi/20 text-signal-multi'
                     }`}
                   >
-                    {isCorrect ? <Check size={12} /> : isUnanswered ? '—' : <X size={12} />}
+                    {isCorrect ? <Check size={12} /> : isUnanswered ? '--' : <X size={12} />}
                   </span>
                   <span className="flex-1 truncate font-sans text-[13px] text-text-primary">
                     {q.question}
@@ -294,9 +298,33 @@ export function ResultsScreen({
           <div className="font-sans text-[10px] uppercase tracking-[0.1em] text-text-muted mb-1">
             Report Hash (SHA-256)
           </div>
-          <div className="font-mono text-[11px] text-text-mono break-all tabular-nums">
-            {reportHash || 'computing...'}
-          </div>
+          {hashLoading ? (
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-signal-focus border-t-transparent" />
+              <span className="font-sans text-[12px] text-text-secondary italic">
+                Verifying...
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1 mb-1">
+                {serverVerified ? (
+                  <span className="flex items-center gap-1 font-sans text-[10px] text-signal-drowsy">
+                    <ShieldCheck size={12} />
+                    Server-Verified
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 font-sans text-[10px] text-signal-caution">
+                    <ShieldAlert size={12} />
+                    Local Draft — Not Server Verified
+                  </span>
+                )}
+              </div>
+              <div className="font-mono text-[11px] text-text-mono break-all tabular-nums">
+                {reportHash || 'computing...'}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex gap-3 mt-auto">

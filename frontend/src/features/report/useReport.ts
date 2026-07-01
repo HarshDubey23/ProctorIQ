@@ -32,6 +32,7 @@ export function useReport(sessionId?: string) {
           start: new Date(serverSession.start).getTime(),
           end: serverSession.end ? new Date(serverSession.end).getTime() : null,
           mode: serverSession.mode ?? 'selftest',
+          quizScore: serverSession.quiz_score ?? null,
           finalScore: serverSession.final_score,
           pctFocused: serverSession.pct_focused,
           verdict: serverSession.verdict,

@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { QUESTIONS } from './questions';
 import { saveSession } from '../../lib/db';
 import type { StoredSession, StoredEvent } from '../../lib/db';
+import { useProctoringSocket } from '../../lib/useProctoringSocket';
 import type {
   ExamState,
   ExamAnswer,
@@ -9,6 +10,7 @@ import type {
   ProctorEventType,
 } from './types';
 
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
 const EXAM_DURATION = 15 * 60;
 
 function createInitialAnswers(): ExamAnswer[] {
@@ -30,6 +32,8 @@ export function useExamSession() {
   const [timeRemaining, setTimeRemaining] = useState(EXAM_DURATION);
   const [events, setEvents] = useState<ProctorEvent[]>([]);
   const [submittedAt, setSubmittedAt] = useState<number | null>(null);
+  const [sessionId, setSessionId] = useState('');
+  const [sessionRegistered, setSessionRegistered] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -39,7 +43,7 @@ export function useExamSession() {
   const eventsRef = useRef<ProctorEvent[]>([]);
   const answersRef = useRef<ExamAnswer[]>(answers);
   answersRef.current = answers;
-  const [sessionId, setSessionId] = useState('');
+  const { connect: wsConnect, disconnect: wsDisconnect, tick: wsTick } = useProctoringSocket();
 
   const clearTimers = useCallback(() => {
     if (timerRef.current) {
@@ -52,9 +56,27 @@ export function useExamSession() {
     }
   }, []);
 
+  async function registerSession(sid: string, startTs: number): Promise<void> {
+    try {
+      await fetch(`${API_BASE}/api/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: sid,
+          start: new Date(startTs).toISOString(),
+          mode: 'exam',
+        }),
+      });
+    } catch {
+      // Backend unreachable — exam can still proceed offline
+    }
+    setSessionRegistered(true);
+  }
+
   const submit = useCallback(() => {
     if (stateRef.current !== 'in_progress') return;
     clearTimers();
+    wsDisconnect();
     const now = Date.now();
     const storedEvents: StoredEvent[] = eventsRef.current.map((e) => ({
       eventType: e.type,
@@ -62,17 +84,18 @@ export function useExamSession() {
       confidence: null,
       details: e.details ? { details: e.details } : null,
     }));
-    const score = computeCorrectCount(answersRef.current);
+    const correctCount = computeCorrectCount(answersRef.current);
     const total = QUESTIONS.length;
-    const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+    const quizScore = total > 0 ? Math.round((correctCount / total) * 100) : 0;
     const sessionRecord: StoredSession = {
       id: sessionId,
       start: startTimeRef.current,
       end: now,
       mode: 'exam',
-      finalScore: pct,
+      quizScore,
+      finalScore: null,
       pctFocused: null,
-      verdict: pct >= 80 ? 'PASS' : pct >= 50 ? 'REVIEW' : 'FLAGGED',
+      verdict: null,
       events: storedEvents,
       benchmark: null,
     };
@@ -80,9 +103,8 @@ export function useExamSession() {
     setSubmittedAt(now);
     setState('submitted');
     setTimeout(() => setState('results'), 600);
-  }, [clearTimers]);
+  }, [clearTimers, wsDisconnect, sessionId]);
 
-  /* Exam timer */
   const startTimer = useCallback(() => {
     setTimeRemaining(EXAM_DURATION);
     timerRef.current = setInterval(() => {
@@ -96,7 +118,6 @@ export function useExamSession() {
     }, 1000);
   }, [submit]);
 
-  /* Countdown: 3 → 2 → 1 → start */
   const startCountdown = useCallback(() => {
     setCountdownValue(3);
     countdownRef.current = setInterval(() => {
@@ -105,18 +126,21 @@ export function useExamSession() {
           if (countdownRef.current) clearInterval(countdownRef.current);
           countdownRef.current = null;
           startTimeRef.current = Date.now();
-          setSessionId(crypto.randomUUID());
+          const sid = crypto.randomUUID();
+          setSessionId(sid);
           eventsRef.current = [];
+          setSessionRegistered(false);
           setState('in_progress');
+          registerSession(sid, startTimeRef.current);
+          wsConnect(sid);
           startTimer();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-  }, [startTimer]);
+  }, [startTimer, wsConnect]);
 
-  /* State transitions */
   const requestWebcam = useCallback(() => {
     setState('webcam_permission');
     navigator.mediaDevices
@@ -136,18 +160,19 @@ export function useExamSession() {
 
   const resetExam = useCallback(() => {
     clearTimers();
+    wsDisconnect();
     startTimeRef.current = 0;
     eventsRef.current = [];
     setSessionId('');
+    setSessionRegistered(false);
     setState('idle');
     setAnswers(createInitialAnswers());
     setCurrentQuestionIndex(0);
     setTimeRemaining(EXAM_DURATION);
     setEvents([]);
     setSubmittedAt(null);
-  }, [clearTimers]);
+  }, [clearTimers, wsDisconnect]);
 
-  /* Answer selection */
   const selectAnswer = useCallback((questionId: number, index: number) => {
     setAnswers((prev) =>
       prev.map((a) =>
@@ -168,14 +193,12 @@ export function useExamSession() {
     setCurrentQuestionIndex((prev) => Math.max(prev - 1, 0));
   }, []);
 
-  /* Proctor event logging */
   const addEvent = useCallback((type: ProctorEventType, details?: string) => {
     const event: ProctorEvent = { type, timestamp: Date.now(), details };
     eventsRef.current = [...eventsRef.current, event];
     setEvents(eventsRef.current);
   }, []);
 
-  /* Tab switch + window blur listeners */
   useEffect(() => {
     if (state !== 'in_progress') return;
 
@@ -198,12 +221,12 @@ export function useExamSession() {
     };
   }, [state, addEvent]);
 
-  /* Cleanup on unmount */
   useEffect(() => {
     return () => {
       clearTimers();
+      wsDisconnect();
     };
-  }, [clearTimers]);
+  }, [clearTimers, wsDisconnect]);
 
   const correctCount = computeCorrectCount(answers);
   const totalQuestions = QUESTIONS.length;
@@ -221,6 +244,7 @@ export function useExamSession() {
     totalQuestions,
     examScorePct,
     sessionId,
+    sessionRegistered,
     QUESTIONS,
     startExam,
     resetExam,
@@ -230,5 +254,6 @@ export function useExamSession() {
     prevQuestion,
     addEvent,
     submit,
+    wsTick,
   };
 }
