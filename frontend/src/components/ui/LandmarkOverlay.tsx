@@ -7,10 +7,11 @@ interface LandmarkOverlayProps {
 }
 
 const PNP_INDICES = new Set([1, 152, 33, 263, 61, 291]);
-const PNP_COLOR = '#FB923C';
-const MESH_COLOR = 'rgba(56, 189, 248, 0.4)';
-const FULL_MESH_COLOR = 'rgba(56, 189, 248, 0.15)';
-const IRIS_COLOR = 'rgba(52, 211, 153, 0.7)';
+const JADE = 'rgba(14, 107, 92, 1)';
+const PNP_COLOR = JADE;
+const MESH_COLOR = 'rgba(14, 107, 92, 0.35)';
+const FULL_MESH_COLOR = 'rgba(14, 107, 92, 0.12)';
+const IRIS_COLOR = 'rgba(14, 107, 92, 0.6)';
 
 const FACE_OVAL = [
   10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
@@ -178,13 +179,18 @@ export function LandmarkOverlay({ landmarks, videoEl, enabled }: LandmarkOverlay
       const px = x * w;
       const py = y * h;
       if (PNP_INDICES.has(i)) {
+        ctx.save();
+        ctx.shadowColor = JADE;
+        ctx.shadowBlur = 8;
         ctx.beginPath();
         ctx.arc(px, py, 4, 0, Math.PI * 2);
         ctx.fillStyle = PNP_COLOR;
         ctx.fill();
-        ctx.strokeStyle = '#fff';
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(14, 107, 92, 0.3)';
         ctx.lineWidth = 1.5;
         ctx.stroke();
+        ctx.restore();
       } else if (!fullMesh) {
         ctx.fillStyle = MESH_COLOR;
         ctx.fillRect(px - 0.5, py - 0.5, 1, 1);
