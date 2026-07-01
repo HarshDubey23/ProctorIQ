@@ -149,4 +149,32 @@
   --radius-xl: 16px;
   --radius-full: 9999px;
   --border-width: 1px;
+
+  /*
+   * DEPRECATED ALIASES — maintain backward compatibility with
+   * components still referencing the old signal-/text-/bg- token
+   * names.  New code should use the Aperture tokens above.
+   * These will be removed after all consumers are migrated.
+   */
+  --signal-focus: var(--jade);
+  --signal-alert: var(--ochre);
+  --signal-absent: var(--plum);
+  --signal-multi: var(--clay);
+  --signal-neutral: var(--ink-faint);
+  --signal-caution: var(--ochre);
+  --signal-drowsy: var(--jade);
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-muted);
+  --text-muted: var(--ink-faint);
+  --text-mono: var(--cobalt);
+  --bg-neutral: var(--surface-0);
+  --bg-focused: var(--surface-1);
+  --bg-distracted: var(--surface-1);
+  --bg-absent: var(--surface-1);
+  --bg-multi: var(--surface-1);
+  --panel-neutral: var(--surface-1);
+  --panel-focused: var(--surface-1);
+  --panel-distracted: var(--surface-1);
+  --panel-absent: var(--surface-1);
+  --panel-multi: var(--surface-1);
 }

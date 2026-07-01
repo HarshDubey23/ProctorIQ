@@ -34,6 +34,36 @@ export default {
         gold: 'var(--gold)',
         hairline: 'var(--hairline)',
         'hairline-strong': 'var(--hairline-strong)',
+        /* Deprecated aliases — will be removed after migration */
+        'text': {
+          primary: 'var(--ink)',
+          secondary: 'var(--ink-muted)',
+          muted: 'var(--ink-faint)',
+          mono: 'var(--cobalt)',
+        },
+        'signal': {
+          focus: 'var(--jade)',
+          alert: 'var(--ochre)',
+          absent: 'var(--plum)',
+          multi: 'var(--clay)',
+          neutral: 'var(--ink-faint)',
+          caution: 'var(--ochre)',
+          drowsy: 'var(--jade)',
+        },
+        'bg': {
+          neutral: 'var(--surface-0)',
+          focused: 'var(--surface-1)',
+          distracted: 'var(--surface-1)',
+          absent: 'var(--surface-1)',
+          multi: 'var(--surface-1)',
+        },
+        'panel': {
+          neutral: 'var(--surface-1)',
+          focused: 'var(--surface-1)',
+          distracted: 'var(--surface-1)',
+          absent: 'var(--surface-1)',
+          multi: 'var(--surface-1)',
+        },
       },
       fontFamily: {
         display: ['"Fraunces Variable"', 'Lora', '"Source Serif 4"', 'Georgia', 'serif'],
