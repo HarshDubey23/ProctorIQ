@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import io
 from datetime import datetime, timezone
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import mm
-from reportlab.platypus import (
+from typing import Any
+from reportlab.lib.pagesizes import A4  # type: ignore[import-untyped]
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # type: ignore[import-untyped]
+from reportlab.lib.units import mm  # type: ignore[import-untyped]
+from reportlab.platypus import (  # type: ignore[import-untyped]
     SimpleDocTemplate,
     Paragraph,
     Spacer,
@@ -14,7 +15,7 @@ from reportlab.platypus import (
     PageBreak,
     Image,
 )
-from reportlab.lib import colors
+from reportlab.lib import colors  # type: ignore[import-untyped]
 
 from backend.models.session import Session, SessionSummary, Verdict
 from backend.report.signing import sign_session
@@ -43,7 +44,7 @@ def _fmt_duration(start: datetime, end: datetime | None) -> str:
     return f"{m}m {s}s"
 
 
-def _build_styles():
+def _build_styles() -> Any:
     base = getSampleStyleSheet()
 
     # Dark background/accent styles for clinical premium theme
@@ -168,7 +169,7 @@ def generate_session_pdf(
         rightMargin=MARGIN,
     )
     styles = _build_styles()
-    story: list = []
+    story: list[Any] = []
 
     # Pre-calculate session metadata
     signature = sign_session(session)
@@ -435,7 +436,7 @@ def generate_session_pdf(
     )
 
     # Inline closure to draw page headers & footers on build
-    def draw_page_decorations(canvas, doc):
+    def draw_page_decorations(canvas: Any, doc: Any) -> None:
         canvas.saveState()
         canvas.setFont("Courier", 8)
         canvas.setFillColor(colors.HexColor("#64748B"))

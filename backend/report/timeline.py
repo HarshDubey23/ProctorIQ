@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from typing import Any, cast
 
 from PIL import Image, ImageDraw
 
@@ -26,7 +27,7 @@ def _event_color(event_type: str) -> tuple[int, int, int]:
 
 def generate_timeline_image(
     duration_sec: int,
-    events: list[dict],
+    events: list[dict[str, Any]],
 ) -> bytes:
     clamped = min(duration_sec, MAX_DURATION)
     rect_w = max(2, TIMELINE_WIDTH // clamped) if clamped > 0 else TIMELINE_WIDTH
@@ -37,7 +38,7 @@ def generate_timeline_image(
     def second_to_attention(second: int) -> str:
         for ev in events:
             if int(ev.get("timestamp_s", 0)) == second:
-                return ev.get("event_type", "focused")
+                return cast(str, ev.get("event_type", "focused"))
         return "focused"
 
     for i in range(clamped):

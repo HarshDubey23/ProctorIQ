@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -25,7 +25,7 @@ async def create_room(
 async def get_room(
     room_id: str,
     store: InMemoryRoomStore = Depends(_get_room_store),
-) -> dict:
+) -> dict[str, Any]:
     room = await store.get_room(room_id)
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found")
