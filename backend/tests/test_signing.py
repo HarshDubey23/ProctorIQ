@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from backend.models.session import Event, Session, Verdict
 from backend.report.signing import sign_session, verify_signature
 
+TEST_SECRET = "test-hmac-secret"
+
 
 def _make_session(**overrides: object) -> Session:
     base = Session(
@@ -46,20 +48,20 @@ def _make_session(**overrides: object) -> Session:
 class TestSigning:
     def test_sign_and_verify(self) -> None:
         session = _make_session()
-        sig = sign_session(session)
+        sig = sign_session(session, secret=TEST_SECRET)
         assert isinstance(sig, str)
         assert len(sig) == 64
-        assert verify_signature(session, sig)
+        assert verify_signature(session, sig, secret=TEST_SECRET)
 
     def test_tampered_session_fails(self) -> None:
         session = _make_session()
-        sig = sign_session(session)
+        sig = sign_session(session, secret=TEST_SECRET)
         session.final_score = 0.0
-        assert not verify_signature(session, sig)
+        assert not verify_signature(session, sig, secret=TEST_SECRET)
 
     def test_tampered_event_fails(self) -> None:
         session = _make_session()
-        sig = sign_session(session)
+        sig = sign_session(session, secret=TEST_SECRET)
         tampered = Session(
             id=session.id,
             start=session.start,
@@ -78,17 +80,23 @@ class TestSigning:
                 ),
             ],
         )
-        assert not verify_signature(tampered, sig)
+        assert not verify_signature(tampered, sig, secret=TEST_SECRET)
 
     def test_empty_events(self) -> None:
         session = _make_session(events=[])
-        sig = sign_session(session)
-        assert verify_signature(session, sig)
+        sig = sign_session(session, secret=TEST_SECRET)
+        assert verify_signature(session, sig, secret=TEST_SECRET)
 
     def test_deterministic(self) -> None:
         s1 = _make_session()
         s2 = _make_session()
-        assert sign_session(s1) == sign_session(s2)
+        assert sign_session(s1, secret=TEST_SECRET) == sign_session(s2, secret=TEST_SECRET)
+
+    def test_different_secret_produces_different_signature(self) -> None:
+        session = _make_session()
+        sig1 = sign_session(session, secret="secret-a")
+        sig2 = sign_session(session, secret="secret-b")
+        assert sig1 != sig2
 
     def test_constant_time_compare_rejects_length_mismatch(self) -> None:
         from backend.report.signing import _constant_time_compare

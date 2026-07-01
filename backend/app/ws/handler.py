@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from backend.core.session_store import SessionStore
 from backend.core.room_store import InMemoryRoomStore
 from backend.models.room import RoomMember
-from backend.models.session import Event
+from backend.models.session import BenchmarkResult, Event
 from backend.models.ws import (
     WsBenchmarkEvent,
     WsFlagEvent,
@@ -122,8 +122,18 @@ async def _handle_state(ev: WsStateEvent, state: ConnectionState) -> None:
     state.face_count = ev.face_count
 
 
-async def _handle_benchmark(ev: WsBenchmarkEvent) -> None:
-    pass
+async def _handle_benchmark(ev: WsBenchmarkEvent, session_id: str, store: SessionStore) -> None:
+    session = await store.get_session(session_id)
+    if session is None:
+        return
+    bench = BenchmarkResult(
+        model_latency_ms=ev.model_latency_ms,
+        inference_count=ev.inference_count,
+        pca_latency_ms=ev.pca_latency_ms,
+        total_events=len(session.events),
+    )
+    session.benchmark = bench
+    await store.update_session(session)
 
 
 async def ws_handler(websocket: WebSocket, session_id: str) -> None:
@@ -156,7 +166,7 @@ async def ws_handler(websocket: WebSocket, session_id: str) -> None:
             elif isinstance(event, WsHeartbeatEvent):
                 pass
             elif isinstance(event, WsBenchmarkEvent):
-                await _handle_benchmark(event)
+                await _handle_benchmark(event, session_id, store)
     except WebSocketDisconnect:
         pass
     except Exception:

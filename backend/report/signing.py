@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from typing import Any
 
+from backend.core.config import get_settings
 from backend.models.session import Session
 
 
@@ -11,7 +13,11 @@ def _canonical_json(obj: Any, *, sort_keys: bool = True) -> str:
     return json.dumps(obj, sort_keys=sort_keys, separators=(",", ":"), ensure_ascii=False)
 
 
-def sign_session(session: Session) -> str:
+def _get_secret(override: str | None = None) -> str:
+    return override if override is not None else get_settings().report_signing_secret
+
+
+def sign_session(session: Session, secret: str | None = None) -> str:
     events_sorted = sorted(
         [
             {
@@ -36,15 +42,16 @@ def sign_session(session: Session) -> str:
     }
 
     canonical = _canonical_json(payload)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    key = _get_secret(secret)
+    return hmac.new(key.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def _sort_key_for_event(e: dict[str, Any]) -> tuple[float, str]:
     return (float(e["timestamp_s"]), str(e["event_type"]))
 
 
-def verify_signature(session: Session, signature: str) -> bool:
-    expected = sign_session(session)
+def verify_signature(session: Session, signature: str, secret: str | None = None) -> bool:
+    expected = sign_session(session, secret=secret)
     return _constant_time_compare(expected, signature)
 
 

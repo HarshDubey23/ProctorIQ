@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Verdict(str, Enum):
@@ -41,11 +41,35 @@ class Session(BaseModel):
     start: datetime
     end: datetime | None = None
     mode: str
-    final_score: float | None = None
-    pct_focused: float | None = None
-    verdict: Verdict | None = None
-    events: list[Event] = []
-    benchmark: BenchmarkResult | None = None
+    final_score: float | None = Field(
+        default=None,
+        description="Server-derived aggregate score — not client-input",
+    )
+    pct_focused: float | None = Field(
+        default=None,
+        description="Server-derived focus percentage — not client-input",
+    )
+    verdict: Verdict | None = Field(
+        default=None,
+        description="Server-derived integrity verdict — not client-input",
+    )
+    events: list[Event] = Field(
+        default=[],
+        description="Events — only appendable server-side via WebSocket flag handler",
+    )
+    benchmark: BenchmarkResult | None = Field(
+        default=None,
+        description="Benchmark — only settable server-side via WebSocket benchmark handler",
+    )
+
+
+class SessionUpdate(BaseModel):
+    """Restricted model for PATCH — only non-integrity fields are mutable by the client."""
+
+    model_config = ConfigDict(frozen=False, extra="forbid")
+
+    end: datetime | None = None
+    mode: str | None = None
 
 
 class SessionSummary(BaseModel):

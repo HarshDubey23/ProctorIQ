@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     rate_limit: str = "60/minute"
 
+    report_signing_secret: str = "dev-secret-not-for-production"
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: str | list[str]) -> list[str]:

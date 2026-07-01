@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from backend.core.session_store import InMemorySessionStore, SessionStore
-from backend.models.session import Session, SessionSummary
+from backend.cv.scoring import FlagEvent, compute_attention_score
+from backend.models.session import Session, SessionUpdate, SessionSummary, Verdict
 from backend.report.pdf import generate_session_pdf
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -56,14 +57,18 @@ async def get_session(
 @router.patch("/{session_id}")
 async def update_session(
     session_id: str,
-    body: Session,
+    body: SessionUpdate,
     store: InMemorySessionStore = Depends(_get_store),
 ) -> Session:
     existing = await store.get_session(session_id)
     if existing is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    body.id = session_id
-    return await store.update_session(body)
+    merged = existing.model_copy(deep=True)
+    if body.end is not None:
+        merged.end = body.end
+    if body.mode is not None:
+        merged.mode = body.mode
+    return await store.update_session(merged)
 
 
 @router.delete("/{session_id}", status_code=204)
@@ -71,7 +76,6 @@ async def delete_session(
     session_id: str,
     store: InMemorySessionStore = Depends(_get_store),
 ) -> None:
-    # InMemorySessionStore does not support delete; blank the session.
     existing = await store.get_session(session_id)
     if existing is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -92,6 +96,36 @@ async def get_session_report(
     session = await store.get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    # Always compute integrity fields server-side from the authoritative event log.
+    flag_events = [
+        FlagEvent(event_type=e.event_type, timestamp_s=e.timestamp_s)
+        for e in session.events
+    ]
+    duration_s = 0
+    if session.end and session.start:
+        duration_s = int((session.end - session.start).total_seconds())
+    elif session.start:
+        duration_s = int((datetime.now(timezone.utc) - session.start).total_seconds())
+
+    score_result = compute_attention_score(flag_events, duration_s)
+
+    if score_result.score > -0.5:
+        verdict = Verdict.PASS
+    elif score_result.score > -1.5:
+        verdict = Verdict.FLAGGED
+    elif score_result.score > -3.0:
+        verdict = Verdict.REVIEW
+    else:
+        verdict = Verdict.INCONCLUSIVE
+
+    focused_seconds = duration_s - sum(score_result.event_counts.values())
+    pct_focused = (focused_seconds / duration_s * 100) if duration_s > 0 else 0.0
+
+    session.final_score = score_result.score
+    session.pct_focused = pct_focused
+    session.verdict = verdict
+
     recent = await store.list_sessions(limit=5)
     pdf_bytes = generate_session_pdf(session, recent_sessions=recent)
     return StreamingResponse(
@@ -101,4 +135,3 @@ async def get_session_report(
             "Content-Disposition": f'attachment; filename="proctoriq-{session_id[:8]}.pdf"'
         },
     )
-
