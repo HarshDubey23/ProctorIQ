@@ -3,12 +3,27 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 
 from backend.core.config import get_settings
 from backend.core.session_store import InMemorySessionStore
 from backend.core.room_store import InMemoryRoomStore
+
+
+async def _close_expired_rooms(store: InMemoryRoomStore) -> None:
+    now = datetime.now(timezone.utc)
+    room_ids = list(store._rooms.keys()) if hasattr(store, "_rooms") else []
+    for rid in room_ids:
+        room = await store.get_room(rid)
+        if (
+            room is not None
+            and room.status == "open"
+            and room.duration_minutes is not None
+            and (now - room.created_at).total_seconds() > room.duration_minutes * 60
+        ):
+            await store.close_room(rid)
 
 
 @asynccontextmanager
@@ -29,6 +44,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 await app.state.session_store.cleanup_stale_sessions(
                     timeout_minutes=settings.session_timeout_minutes
                 )
+            except Exception:
+                pass
+            try:
+                await _close_expired_rooms(app.state.room_store)
             except Exception:
                 pass
 

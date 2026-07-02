@@ -27,7 +27,14 @@ async def broadcast_room_update(room_id: str, store: InMemoryRoomStore) -> None:
         }
         for m in room.active_sessions.values()
     ]
-    payload = json.dumps({"type": "room_update", "room_id": room_id, "members": members})
+    payload = json.dumps({
+        "type": "room_update",
+        "room_id": room_id,
+        "title": room.title,
+        "status": room.status,
+        "duration_minutes": room.duration_minutes,
+        "members": members,
+    })
     sockets = _room_sockets.get(room_id, set())
     stale: set[WebSocket] = set()
     for ws in sockets:
@@ -47,6 +54,10 @@ async def room_ws(websocket: WebSocket, room_id: str) -> None:
         await websocket.close(code=4004, reason="Room not found")
         return
 
+    if room.status == "closed":
+        await websocket.close(code=4004, reason="Room is closed")
+        return
+
     await websocket.accept()
 
     _room_sockets.setdefault(room_id, set()).add(websocket)
@@ -64,7 +75,14 @@ async def room_ws(websocket: WebSocket, room_id: str) -> None:
             }
             for m in initial_room.active_sessions.values()
         ]
-        await websocket.send_json({"type": "room_update", "room_id": room_id, "members": members})
+        await websocket.send_json({
+            "type": "room_update",
+            "room_id": room_id,
+            "title": initial_room.title,
+            "status": initial_room.status,
+            "duration_minutes": initial_room.duration_minutes,
+            "members": members,
+        })
 
     try:
         while True:

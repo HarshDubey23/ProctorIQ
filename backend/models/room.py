@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 
 from pydantic import BaseModel
@@ -19,4 +20,9 @@ class RoomMember(BaseModel):
 class Room(BaseModel):
     room_id: str
     created_at: datetime
+    title: str = ""
+    duration_minutes: int | None = None
+    max_participants: int | None = None
+    host_token: str = ""
+    status: Literal["open", "closed"] = "open"
     active_sessions: dict[str, RoomMember] = {}
