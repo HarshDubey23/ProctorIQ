@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { ExamQuestion, ExamAnswer } from './types';
 import { Check, X } from 'lucide-react';
 
@@ -35,32 +36,43 @@ export function ExamQuestionCard({
           const isCorrect = question.correctIndex === idx;
           const isWrongSelected = showResults && isSelected && !isCorrect;
 
-          let borderColor = 'border-white/[0.08]';
-          let bgColor = 'bg-white/[0.03]';
+          let borderStyle: CSSProperties = { borderColor: 'var(--hairline)' };
+          let bgStyle: CSSProperties = { backgroundColor: 'var(--surface-1)' };
           let textColor = 'text-text-primary';
 
           if (showResults) {
             if (isCorrect) {
-              borderColor = 'border-signal-drowsy';
-              bgColor = 'bg-signal-drowsy/[0.08]';
+              borderStyle = { borderColor: 'var(--signal-drowsy)' };
+              bgStyle = { backgroundColor: 'rgba(14,107,92,0.08)' };
               textColor = 'text-signal-drowsy';
             } else if (isWrongSelected) {
-              borderColor = 'border-signal-multi';
-              bgColor = 'bg-signal-multi/[0.08]';
+              borderStyle = { borderColor: 'var(--signal-multi)' };
+              bgStyle = { backgroundColor: 'rgba(166,61,47,0.08)' };
               textColor = 'text-signal-multi';
             }
           } else if (isSelected) {
-            borderColor = 'border-signal-focus';
-            bgColor = 'bg-signal-focus/[0.08]';
+            borderStyle = { borderColor: 'var(--signal-focus)' };
+            bgStyle = { backgroundColor: 'rgba(14,107,92,0.08)' };
             textColor = 'text-signal-focus';
           }
 
           return (
             <button
               key={idx}
-              className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-200 ${borderColor} ${bgColor} hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]`}
+              className="flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]"
+              style={{ ...borderStyle, ...bgStyle }}
               onClick={() => onSelect(question.id, idx)}
               disabled={showResults}
+              onMouseEnter={(e) => {
+                if (!showResults && !isSelected) {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface-2)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!showResults && !isSelected) {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = bgStyle.backgroundColor as string;
+                }
+              }}
               aria-pressed={isSelected}
               aria-label={`Option ${OPTION_LABELS[idx]}: ${option}`}
             >
@@ -68,8 +80,9 @@ export function ExamQuestionCard({
                 className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-[13px] font-semibold tabular-nums ${
                   isSelected || (showResults && isCorrect)
                     ? 'bg-signal-focus text-black'
-                    : 'bg-white/[0.08] text-text-secondary'
+                    : 'text-text-secondary'
                 }`}
+                style={isSelected || (showResults && isCorrect) ? undefined : { backgroundColor: 'var(--surface-2)' }}
               >
                 {showResults && isCorrect ? (
                   <Check size={14} className="text-black" />

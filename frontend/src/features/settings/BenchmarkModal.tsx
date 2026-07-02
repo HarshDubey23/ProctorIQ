@@ -14,7 +14,7 @@ function BenchmarkTable({ result }: { result: BenchmarkResult }) {
     <div className="overflow-x-auto">
       <table className="w-full text-left">
         <thead>
-          <tr className="border-b border-white/[0.1]">
+          <tr style={{ borderBottom: '1px solid var(--hairline)' }}>
             <th className="font-sans text-[10px] uppercase tracking-[0.1em] text-text-muted pb-2 pr-4">Class</th>
             <th className="font-sans text-[10px] uppercase tracking-[0.1em] text-text-muted pb-2 pr-4">Precision</th>
             <th className="font-sans text-[10px] uppercase tracking-[0.1em] text-text-muted pb-2 pr-4">Recall</th>
@@ -23,7 +23,7 @@ function BenchmarkTable({ result }: { result: BenchmarkResult }) {
         </thead>
         <tbody>
           {result.perClass.map((c) => (
-            <tr key={c.name} className="border-b border-white/[0.02]">
+            <tr key={c.name} style={{ borderBottom: '1px solid var(--hairline)' }}>
               <td className="font-sans text-[13px] text-text-primary py-2 pr-4 capitalize">{c.name}</td>
               <td className="font-mono text-[11px] tabular-nums text-text-mono py-2 pr-4">{c.precision.toFixed(3)}</td>
               <td className="font-mono text-[11px] tabular-nums text-text-mono py-2 pr-4">{c.recall.toFixed(3)}</td>
@@ -32,7 +32,7 @@ function BenchmarkTable({ result }: { result: BenchmarkResult }) {
           ))}
         </tbody>
       </table>
-      <div className="mt-3 flex items-center gap-3 rounded-lg bg-white/[0.03] px-4 py-3">
+      <div className="mt-3 flex items-center gap-3 rounded-lg px-4 py-3" style={{ backgroundColor: 'var(--surface-1)' }}>
         <span className="font-sans text-[11px] uppercase tracking-[0.14em] text-text-secondary">Macro F1</span>
         <span className="font-display text-xl tabular-nums text-signal-focus">
           {result.macroF1.toFixed(3)}
@@ -62,7 +62,8 @@ export function BenchmarkModal({ open, onClose }: BenchmarkModalProps) {
           onClick={onClose}
         >
           <motion.div
-            className="w-full max-w-lg rounded-2xl bg-[--panel-neutral] border border-white/[0.08] p-6 max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+            style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--hairline)', borderTop: '1px solid var(--edge-highlight)', boxShadow: 'var(--shadow-sm)' }}
             initial={reducedMotion ? { opacity: 1 } : { scale: 0.92, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={reducedMotion ? { opacity: 1 } : { scale: 0.92, opacity: 0, y: 20 }}
@@ -75,7 +76,9 @@ export function BenchmarkModal({ open, onClose }: BenchmarkModalProps) {
               </h2>
               <button
                 onClick={() => { reset(); onClose(); }}
-                className="rounded-lg p-1.5 text-text-secondary hover:bg-white/[0.08] hover:text-text-primary transition-colors"
+                className="rounded-lg p-1.5 text-text-secondary hover:text-text-primary transition-colors"
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface-2)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; }}
                 aria-label="Close"
               >
                 <X size={18} />
@@ -91,7 +94,7 @@ export function BenchmarkModal({ open, onClose }: BenchmarkModalProps) {
                 <div className="flex flex-col gap-2">
                   {['Focused', 'Distracted', 'Drowsy', 'Absent', 'Focused'].map((s, i) => (
                     <div key={i} className="flex items-center gap-3 font-sans text-[12px] text-text-secondary">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.05] text-[10px] text-text-muted">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-text-muted" style={{ backgroundColor: 'var(--surface-2)' }}>
                         {i + 1}
                       </span>
                       {s}
@@ -145,8 +148,8 @@ export function BenchmarkModal({ open, onClose }: BenchmarkModalProps) {
                     <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${
                       i < currentStageIdx ? 'w-4 bg-signal-drowsy' :
                       i === currentStageIdx ? 'w-8 bg-signal-focus' :
-                      'w-2 bg-white/[0.12]'
-                    }`} />
+                      'w-2'
+                    }`} style={i > currentStageIdx ? { backgroundColor: 'var(--hairline-strong)' } : undefined} />
                   ))}
                 </div>
               </div>
@@ -166,7 +169,8 @@ export function BenchmarkModal({ open, onClose }: BenchmarkModalProps) {
                 <BenchmarkTable result={result} />
                 <button
                   onClick={() => { reset(); onClose(); }}
-                  className="mt-2 rounded-xl bg-white/[0.06] px-6 py-3 font-sans text-[13px] uppercase tracking-[0.1em] text-text-primary transition-colors hover:bg-white/[0.1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]"
+                  className="mt-2 rounded-xl px-6 py-3 font-sans text-[13px] uppercase tracking-[0.1em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]"
+                  style={{ backgroundColor: 'var(--surface-2)', color: 'var(--ink)' }}
                 >
                   Close
                 </button>

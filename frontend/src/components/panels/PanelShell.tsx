@@ -18,7 +18,7 @@ export function PanelShell({ ghostLabel, isActive, children, ctaLabel, onCtaClic
         className="pointer-events-none absolute inset-0 z-0 flex select-none items-center justify-center"
         aria-hidden="true"
       >
-        <span className="font-display text-[clamp(5.625rem,28vw,23.75rem)] leading-none tracking-tighter text-white/[0.04]">
+        <span className="font-display text-[clamp(5.625rem,28vw,23.75rem)] leading-none tracking-tighter" style={{ color: 'var(--ink-faint)' }}>
           {ghostLabel}
         </span>
       </div>
@@ -47,7 +47,8 @@ export function PanelShell({ ghostLabel, isActive, children, ctaLabel, onCtaClic
 
       {isActive && ctaLabel && (
         <button
-          className="absolute bottom-8 right-8 z-20 rounded-xl bg-white/10 px-6 py-3 font-display text-[clamp(1.25rem,4vw,3.5rem)] uppercase tracking-widest text-white backdrop-blur-sm transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]"
+          className="absolute bottom-8 right-8 z-20 rounded-xl px-6 py-3 font-display text-[clamp(1.25rem,4vw,3.5rem)] uppercase tracking-widest backdrop-blur-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]"
+          style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--hairline)', borderTop: '1px solid var(--edge-highlight)', boxShadow: 'var(--shadow-sm)', color: 'var(--ink)' }}
           aria-label="Call to action"
           tabIndex={0}
           onClick={onCtaClick}

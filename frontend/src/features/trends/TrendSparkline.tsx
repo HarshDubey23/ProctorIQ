@@ -23,7 +23,7 @@ export function TrendSparkline({ data, color, height = 48, width = 240, label }:
     return (
       <div className="flex flex-col gap-1">
         <span className="font-sans text-[11px] uppercase tracking-[0.14em] text-text-secondary">{label}</span>
-        <div style={{ width, height }} className="flex items-center justify-center rounded-lg bg-white/[0.02]">
+        <div style={{ width, height, backgroundColor: 'var(--surface-1)' }} className="flex items-center justify-center rounded-lg">
           <span className="font-sans text-[11px] text-text-muted italic">Insufficient data</span>
         </div>
       </div>

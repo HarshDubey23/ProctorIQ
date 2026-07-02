@@ -33,7 +33,7 @@ export function ProctorExternalExam({ url, onBack }: ProctorExternalExamProps) {
 
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2">
+      <div className="flex items-center justify-between px-4 py-2" style={{ borderBottom: '1px solid var(--hairline)' }}>
         <button
           onClick={onBack}
           className="flex items-center gap-1.5 font-sans text-[12px] text-text-secondary hover:text-text-primary transition-colors"
@@ -68,7 +68,7 @@ export function ProctorExternalExam({ url, onBack }: ProctorExternalExamProps) {
           />
         </div>
 
-        <div className="w-72 border-l border-white/[0.06] flex flex-col gap-4 p-4 overflow-y-auto">
+        <div className="w-72 flex flex-col gap-4 p-4 overflow-y-auto" style={{ borderLeft: '1px solid var(--hairline)' }}>
           <div className="w-full">
             <Gauge score={score} attentionLabel={attention} />
           </div>
