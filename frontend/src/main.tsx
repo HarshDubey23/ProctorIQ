@@ -43,7 +43,7 @@ function HostFlow() {
 
   if (step === 'create' || step === 'share') {
     return (
-      <div className="h-full w-full" style={{ backgroundColor: '#111827' }}>
+      <div className="h-full w-full" style={{ backgroundColor: 'var(--surface-0)' }}>
         {step === 'create' ? (
           <HostExamCreate onCreated={handleCreated} />
         ) : roomData ? (
