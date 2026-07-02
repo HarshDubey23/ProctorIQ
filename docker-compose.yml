@@ -4,18 +4,16 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - CORS_ORIGINS=["http://localhost:5173","http://localhost:3000"]
-    volumes:
-      - ./backend:/app
-    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+      - CORS_ORIGINS=["http://localhost:3000","https://proctoriq.vercel.app"]
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1
 
   frontend:
-    image: node:20-alpine
-    working_dir: /app
+    build: ./frontend
     ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+      - "3000:80"
     depends_on:
       - backend
+    restart: unless-stopped
