@@ -4,7 +4,6 @@ const API_BASE = process.env.CI ? 'http://backend:8000' : 'http://localhost:8000
 
 test.describe('Integrity & Tampering Resistance', () => {
   let sessionId: string;
-  let originalScore: number;
 
   test.beforeAll(async ({ request }) => {
     const createRes = await request.post(`${API_BASE}/api/sessions`, {
@@ -50,13 +49,11 @@ test.describe('Integrity & Tampering Resistance', () => {
   });
 
   test('report signing hash changes if events are tampered with', async ({ request }) => {
-    const getRes = await request.get(`${API_BASE}/api/sessions/${sessionId}`);
-    const session = await getRes.json();
+    await request.get(`${API_BASE}/api/sessions/${sessionId}`);
 
-    const verifyOriginal = await request.post(`${API_BASE}/api/verify`, {
+    await request.post(`${API_BASE}/api/verify`, {
       data: { session_id: sessionId, signature: '' },
     });
-    const originalResult = await verifyOriginal.json();
 
     const tamperRes = await request.patch(`${API_BASE}/api/sessions/${sessionId}`, {
       data: { events: [{ event_type: 'focused', timestamp_s: 999, confidence: 1.0 }] },
@@ -79,8 +76,7 @@ test.describe('Integrity & Tampering Resistance', () => {
   });
 
   test('constant-time comparison prevents timing side-channel', async ({ request }) => {
-    const res = await request.get(`${API_BASE}/api/sessions/${sessionId}`);
-    const session = await res.json();
+    await request.get(`${API_BASE}/api/sessions/${sessionId}`);
 
     const start = Date.now();
     await request.post(`${API_BASE}/api/verify`, {

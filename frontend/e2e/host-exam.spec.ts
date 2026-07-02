@@ -85,7 +85,7 @@ test.describe('Host Exam Flow', () => {
         body: JSON.stringify({ title: 'Multi E2E', max_participants: 2 }),
       })).json();
 
-      const { room_id, host_token } = createRes;
+      const { room_id } = createRes;
 
       const hostPage = await browser.newPage();
       await hostPage.goto(`/host/${room_id}`);
@@ -102,7 +102,7 @@ test.describe('Host Exam Flow', () => {
         headers: { 'Content-Type': 'application/json' },
       })).json();
       expect(dashboard.member_count).toBeGreaterThanOrEqual(1);
-      expect(dashboard.members.some((m: any) => m.display_name === 'E2E Participant')).toBe(true);
+      expect(dashboard.members.some((m: Record<string, unknown>) => m.display_name === 'E2E Participant')).toBe(true);
 
       await hostPage.close();
       await joinPage.close();

@@ -15,15 +15,20 @@ from backend.models.room import Room, RoomMember
 from backend.models.session import Session
 
 
-def _create_room_directly(store: InMemoryRoomStore, **kwargs) -> Room:
+def _create_room_directly(
+    store: InMemoryRoomStore,
+    title: str = "",
+    duration_minutes: int | None = None,
+    max_participants: int | None = None,
+) -> Room:
     import asyncio
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
         room = loop.run_until_complete(store.create_room(
-            title=kwargs.get("title", ""),
-            duration_minutes=kwargs.get("duration_minutes"),
-            max_participants=kwargs.get("max_participants"),
+            title=title,
+            duration_minutes=duration_minutes,
+            max_participants=max_participants,
         ))
         return room
     finally:
