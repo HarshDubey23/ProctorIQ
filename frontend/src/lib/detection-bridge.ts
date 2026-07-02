@@ -42,6 +42,7 @@ export class DetectionBridge {
   private onStatusCb: StatusCallback | null = null;
   private onErrorCb: ErrorCallback | null = null;
   private onLandmarksCb: LandmarksCallback | null = null;
+  private onModelFailureCb: (() => void) | null = null;
   private destroyed = false;
   private restarts = 0;
   private maxRestarts = 3;
@@ -90,6 +91,9 @@ export class DetectionBridge {
         }
         case 'error':
           this.onErrorCb?.(new Error(msg.message as string));
+          break;
+        case 'model_failure':
+          this.onModelFailureCb?.();
           break;
       }
     };
@@ -193,6 +197,11 @@ export class DetectionBridge {
 
   onLandmarks(cb: LandmarksCallback): this {
     this.onLandmarksCb = cb;
+    return this;
+  }
+
+  onModelFailure(cb: () => void): this {
+    this.onModelFailureCb = cb;
     return this;
   }
 

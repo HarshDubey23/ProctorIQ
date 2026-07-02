@@ -35,7 +35,7 @@ function CalibrationProgress({ progress }: { progress: number }) {
 
 export function SelfTestPanel() {
   const { videoRef, isDemo } = useWebcam();
-  const { result, status, landmarks } = useDetection(videoRef, { isDemo });
+  const { result, status, landmarks, modelFailure } = useDetection(videoRef, { isDemo });
   const setActivePanel = useUIStore((s) => s.setActivePanel);
   const [showRaw, setShowRaw] = useState(false);
   const [calState, setCalState] = useState<'idle' | 'calibrating' | 'done' | 'failed'>('idle');
@@ -181,6 +181,19 @@ export function SelfTestPanel() {
                 borderColor: 'rgba(185,118,58,0.3)',
               }}>
               DEMO MODE — no live camera
+            </span>
+          </div>
+        )}
+
+        {modelFailure && (
+          <div className="absolute top-4 left-1/2 z-30 -translate-x-1/2">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-sans text-[11px] uppercase tracking-[0.1em] border whitespace-nowrap"
+              style={{
+                backgroundColor: 'rgba(166,61,47,0.15)',
+                color: 'var(--clay)',
+                borderColor: 'rgba(166,61,47,0.3)',
+              }}>
+              Model unavailable — using fallback detection
             </span>
           </div>
         )}

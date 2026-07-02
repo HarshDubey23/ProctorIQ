@@ -19,6 +19,7 @@ interface UseDetectionReturn {
   status: DetectionStatus;
   landmarks: number[][] | null;
   videoRef: RefObject<HTMLVideoElement>;
+  modelFailure: boolean;
 }
 
 export function useDetection(
@@ -29,6 +30,7 @@ export function useDetection(
   const [result, setResult] = useState<DetectionResult | null>(null);
   const [status, setStatus] = useState<DetectionStatus>('loading');
   const [landmarks, setLandmarks] = useState<number[][] | null>(null);
+  const [modelFailure, setModelFailure] = useState(false);
   const bridgeRef = useRef<DetectionBridge | null>(null);
   const rafRef = useRef(0);
   const lastFrameTime = useRef(0);
@@ -39,6 +41,7 @@ export function useDetection(
       return;
     }
 
+    setModelFailure(false);
     const bridge = initDetection(DETECTION_CONFIG);
     bridgeRef.current = bridge;
     setBridge(bridge);
@@ -47,6 +50,7 @@ export function useDetection(
     bridge.onStatus(setStatus);
     bridge.onError(() => setStatus('error'));
     bridge.onLandmarks((lm) => setLandmarks(lm));
+    bridge.onModelFailure(() => setModelFailure(true));
 
     return () => {
       bridge.destroy();
@@ -97,7 +101,7 @@ export function useDetection(
     return cleanup;
   }, [enabled, isDemo]);
 
-  return { result, status, landmarks, videoRef };
+  return { result, status, landmarks, videoRef, modelFailure };
 }
 
 export function computeAttentionScore(result: DetectionResult): number {

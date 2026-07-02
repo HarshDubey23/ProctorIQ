@@ -205,6 +205,7 @@ let kalmanPose: KalmanFilter;
 let kalmanEAR: KalmanFilter;
 let ruleOnly = false;
 let mlEnabled = false;
+let consecutiveInferenceFailures = 0;
 let faceWasPresent = false;
 let gazeOffCount = 0;
 let bsGazeOffCount = 0;
@@ -447,8 +448,15 @@ async function processFrame(
           lastRuleAttention = attention;
         }
       }
-    } catch {
-      // ONNX inference failed — keep rule result
+      consecutiveInferenceFailures = 0;
+    } catch (err) {
+      consecutiveInferenceFailures++;
+      if (import.meta.env.DEV) {
+        console.error('[worker] ONNX inference failed:', err);
+      }
+      if (consecutiveInferenceFailures > 10) {
+        self.postMessage({ type: 'model_failure' });
+      }
     }
   }
 
@@ -481,6 +489,25 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
       if (cfg.pcaData) promises.push(loadPCA(cfg.pcaData));
       if (cfg.labelsUrl) promises.push(loadLabels(cfg.labelsUrl));
       await Promise.all(promises);
+
+      if (!ruleOnly && session && pcaData) {
+        try {
+          const dummyInput = new Float32Array(pcaData.nComponents);
+          const tensor = new ort.Tensor('float32', dummyInput, [1, 1, pcaData.nComponents]);
+          const feeds: Record<string, ort.Tensor> = {};
+          feeds[session.inputNames[0]] = tensor;
+          const results = await session.run(feeds);
+          const output = results[session.outputNames[0]] as ort.Tensor;
+          if (import.meta.env.DEV) {
+            console.log('[worker] Startup self-test OK — output length:', (output.data as Float32Array).length);
+          }
+        } catch (err) {
+          console.error('[worker] Startup self-test FAILED — disabling ML:', err);
+          ruleOnly = true;
+          mlEnabled = false;
+        }
+      }
+
       postReadyStatus();
     } catch (err) {
       console.error('[worker] init failed:', err);

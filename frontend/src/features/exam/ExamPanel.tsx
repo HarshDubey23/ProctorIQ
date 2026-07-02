@@ -40,7 +40,7 @@ export function ExamPanel() {
   const reducedMotion = useReducedMotion();
   const { videoRef, isDemo } = useWebcam();
   const proctoringActive = state === 'in_progress' || state === 'results';
-  const { result: detectionResult } = useDetection(videoRef, {
+  const { result: detectionResult, modelFailure } = useDetection(videoRef, {
     enabled: proctoringActive,
     isDemo,
   });
@@ -391,6 +391,19 @@ export function ExamPanel() {
       {state === 'in_progress' && detectionResult && !isDemo && (
         <div className="absolute top-4 left-4 z-40 flex items-center gap-2">
           <StatusPill state={detectionResult.attention as StatusState} />
+        </div>
+      )}
+
+      {modelFailure && (
+        <div className="absolute top-4 left-1/2 z-50 -translate-x-1/2">
+          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-sans text-[11px] uppercase tracking-[0.1em] border whitespace-nowrap"
+            style={{
+              backgroundColor: 'rgba(166,61,47,0.15)',
+              color: 'var(--clay)',
+              borderColor: 'rgba(166,61,47,0.3)',
+            }}>
+            Model unavailable — using fallback detection
+          </span>
         </div>
       )}
     </div>
