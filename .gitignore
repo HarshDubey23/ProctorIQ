@@ -20,3 +20,8 @@ ml/data/augmented/
 ml/data/models/
 ml/data/validation/
 ml/data/ablation/
+backend_error.log
+backend_server.log
+diff_output.txt
+frontend/playwright-report/
+frontend/test-results/

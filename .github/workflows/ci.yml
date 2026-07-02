@@ -50,6 +50,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -62,16 +65,31 @@ jobs:
           cd frontend
           npx playwright install chromium
       - name: Start backend
+        env:
+          CORS_ORIGINS: '["http://localhost:4173","http://localhost:5173"]'
         run: |
           cd backend
           pip install -r requirements.txt
           uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1 &
-          sleep 3
-          curl -f http://localhost:8000/health || echo "Backend not ready yet"
-      - name: Run Playwright E2E tests
+          echo "Waiting for backend to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health > /dev/null; then
+              echo "Backend is ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Backend failed to become ready after 30s"
+          exit 1
+      - name: Build frontend
+        env:
+          VITE_API_URL: 'http://localhost:8000'
         run: |
           cd frontend
           npm run build
+      - name: Run Playwright E2E tests
+        run: |
+          cd frontend
           npx playwright test
       - uses: actions/upload-artifact@v4
         if: failure()
