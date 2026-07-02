@@ -130,3 +130,88 @@
 **Decision**: Dynamic quantization to int8.
 
 **Rationale**: Model size drops from 2.1MB to 0.6MB (74% reduction). Quantized ONNX matches fp32 accuracy within measurement noise (0.992 F1). The size reduction is critical for initial page load — the model is the largest asset downloaded.
+
+### 11. HMAC-SHA256 Report Signing vs Server Database as Source of Truth
+
+**Decision**: Verdicts and scores are server-computed from raw events and HMAC-SHA256 signed.
+
+**Rationale**: A PATCH to `/api/sessions/{id}` can update the session record, but the report includes a signature over the *server-computed* score, not the stored value. The verification endpoint re-computes the expected signature, so even if the database row is tampered with, the report authenticity check fails. This is the defense against the self-grading attack described in the E2E integrity regression tests.
+
+### 12. InMemoryStore Protocol vs Redis Backend
+
+**Decision**: Session and Room stores implement a `typing.Protocol` interface, currently backed by `InMemorySessionStore` and `InMemoryRoomStore`.
+
+**Rationale**: The Protocol abstraction (defined in `session_store.py` and `room_store.py`) was designed from the start for swap-out. An in-memory store was sufficient for development and single-worker deployment. A Redis-backed implementation would require a Redis instance and additional deploy infrastructure, which was outside the initial scope. See [Trade-offs](#trade-offs-and-known-limitations).
+
+---
+
+## Trade-offs and Known Limitations
+
+This section exists because a portfolio project that names its own constraints reads as more credible than one that claims everything is perfect.
+
+### In-Memory Stores Require Single-Worker Deployment
+
+Both `InMemorySessionStore` and `InMemoryRoomStore` store data in Python `dict` objects on the process heap. This means:
+
+- **No process restart survival** — If the server restarts (deploy, crash, scale), all active sessions and rooms are lost.
+- **No multi-worker support** — Uvicorn/gunicorn with multiple workers spawns separate processes, each with its own memory space. A room created on worker 1 is invisible to a WebSocket connection on worker 2. The backend is pinned to `--workers 1` in production.
+- **Single point of failure** — A process crash during an active exam destroys all state.
+
+**Mitigation**: The deployment uses a single worker. If horizontal scaling or restart resilience becomes necessary, swap the store implementations for Redis-backed versions behind the same Protocol interface — this is exactly what the Protocol abstraction was built for. Estimated effort: ~2 days of focused work.
+
+### Client-Side Detection Trust Boundary
+
+Face landmark extraction, head pose estimation, and even the 1D-CNN inference all run in the browser. This means:
+
+- A sufficiently motivated client could modify the JavaScript to report fabricated landmark data.
+- The HMAC signing protects the server-computed *score* from tampering, but it cannot protect against fabricated *input* data.
+- The "server-verified" seal means "the server did compute this score from the events it received" — not "the events themselves are guaranteed authentic."
+
+**Mitigation**: This is a fundamental property of client-side detection. Any proctoring system that does not use a locked-down browser environment (e.g., a dedicated kiosk application) faces the same constraint. The report signature makes it possible to *detect* tampering (the seal would read "Local Draft" instead of "Server-Verified" if the report was generated client-side), but cannot prevent it at the sensor level.
+
+### IndexedDB Storage Limits
+
+IndexedDB is typically capped at ~50MB per origin in most browsers. At ~100KB per session (including landmark data), this bounds local history to roughly 500 sessions before the browser starts throwing `QuotaExceededError`.
+
+**Mitigation**: The app catches storage errors gracefully, and the data export feature (Settings panel → "Export all sessions as JSON") lets users back up before hitting limits. A production deployment could sync to a backend database, but that would introduce the privacy exposure the architecture was designed to avoid.
+
+### solvePnP Degradation Past ~70° Yaw
+
+Profile view causes key landmark occlusion. Detection continues with reduced accuracy; the Kalman filter smooths the transition. This is a hardware/facial geometry limitation of monocular 3D pose estimation from sparse landmarks and is common to all implementations that use MediaPipe's 478-point model.
+
+### MediaPipe Bias
+
+MediaPipe's face landmark model has documented ~8-12% lower detection rates for dark skin in low-light conditions (< 50 lux). This is a known issue in the broader face analysis community. The rule-based fallback (reports "absent" when no landmarks are found) means the system degrades to a conservative default rather than producing false positive detections.
+
+---
+
+## Deployment
+
+### Production Architecture
+
+```
+┌─────────────┐      ┌──────────────┐      ┌──────────────┐
+│   Browser   │─────>│  Vercel      │      │  Backend     │
+│  (user)     │      │  (Frontend)  │─────>│  (Render/    │
+│             │<─────│  Static SPA  │      │   Railway)   │
+└─────────────┘      └──────────────┘      │  FastAPI     │
+                                            │  + uvicorn   │
+                                            │  (1 worker)  │
+                                            └──────────────┘
+```
+
+### Deploy Steps
+
+1. **Backend** (Render / Railway):
+   - Set build command: `pip install -r backend/requirements.txt`
+   - Set start command: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --workers 1`
+   - Set environment variables from `.env.example` — especially `REPORT_SIGNING_SECRET` to a real random value
+   - Set `CORS_ORIGINS` to `["https://proctoriq.vercel.app"]`
+
+2. **Frontend** (Vercel):
+   - Import the `frontend/` directory as a new project
+   - Framework preset: Vite
+   - Environment variable: `VITE_API_URL=https://your-backend-url.com`
+   - The existing `vercel.json` handles SPA routing
+
+3. **HTTPS**: Both Vercel and Render/Railway provide automatic HTTPS. This is not optional — browsers block `getUserMedia()` camera access on non-localhost HTTP origins.

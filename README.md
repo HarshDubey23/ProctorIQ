@@ -1,179 +1,30 @@
 # ProctorIQ
 
-Privacy-first attention and exam-integrity analytics. In-browser ML via WebAssembly — no video ever leaves the device.
+**Real-time attention analytics with tamper-proof integrity verification.**  
+No video ever leaves the device — all ML inference runs in-browser via WebAssembly.
 
+[![Live Demo](https://img.shields.io/badge/Try%20it%20live-00875A?style=for-the-badge&logo=vercel&logoColor=white)](https://proctoriq.vercel.app)
 [![CI](https://img.shields.io/github/actions/workflow/status/HarshDubey23/ProctorIQ/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/HarshDubey23/ProctorIQ/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue?style=flat-square)](https://github.com/HarshDubey23/ProctorIQ/releases)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript&logoColor=white)]()
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white)]()
-[![ONNX](https://img.shields.io/badge/ONNX_Runtime-1.20-005CED?style=flat-square&logo=onnx&logoColor=white)]()
-
-[Live Demo](https://proctoriq.vercel.app) · [Architecture Docs](docs/ARCHITECTURE.md) · [Report a Bug](https://github.com/HarshDubey23/ProctorIQ/issues)
-
-<!-- Replace Live Demo URL after Vercel deploy -->
 
 ---
 
-## Table of Contents
+## Why This Exists: The Self-Grading Problem
 
-- [Screenshots](#screenshots)
-- [Why This Exists](#why-this-exists)
-- [Results at a Glance](#results-at-a-glance)
-- [Architecture](#architecture)
-- [Engineering Decisions](#engineering-decisions)
-- [Tech Stack](#tech-stack)
-- [Quick Start](#quick-start)
-- [API Reference](#api-reference)
-- [Limitations](#limitations)
-- [License](#license)
-- [Contributing](#contributing)
+Most proctoring demos have a problem: the student's score is computed in JavaScript, stored in localStorage, and sent to the server as a claim. Nothing stops the student from opening DevTools, setting `final_score = 0.95`, and downloading a pristine report.
 
----
+ProctorIQ solves this differently. The client streams structured **events** (focused, distracted, drowsy, absent) to the server over WebSocket — not scores, not verdicts. The server:
 
-## Design Direction — "Aperture"
+1. Re-computes the attention score from the raw event sequence
+2. Applies the same scoring rules the client uses
+3. HMAC-SHA256 signs the canonical payload (session_id, score, verdict, event list)
+4. Stores only the signature; the signed PDF report includes the hash
 
-ProctorIQ's mechanism is optical — a lens, calibrated light, measured precision. The **Aperture** design language mirrors this with a visual system inspired by premium optical instruments (Leica, Zeiss) executed with restraint:
+If someone PATCHes the session record with a forged `quiz_score`, the stored signature will **not** match the re-computed signature at verification time. The report seal reads "Server-Verified" only when the hash chain is intact. If it reads "Local Draft," you know something was tampered with.
 
-- **Titanium neutrals** — Cool brushed-metal light grays (`#EEF0F0`) in light mode; warm charcoal (`#16191B`) in dark mode ("Night Session"). Neither cream/warm nor navy/cool — a deliberate third path.
-- **Six-color semantic palette** — Each color has exactly one job: jade (focused/CTA), ochre (distracted), plum (drowsy), clay (absent/critical), cobalt (verification/trust), gold (seal/authenticity — appears only once per session).
-- **Three-typeface system** — Fraunces (display serif for verdicts and large scores), Inter Variable (UI sans for body text), Martian Mono (data mono for timestamps, hashes, coordinates). Each earns its place with a stated reason.
-- **ApertureGauge signature component** — An 8-blade camera-iris diaphragm that replaces conventional circular gauges. Blade openness maps to attention confidence; blade color interpolates through the semantic palette in OKLCH space. Framer Motion spring physics give it a weighted mechanical feel.
-- **Filmstrip timeline** — Session timeline uses sprocket-hole details and segment-state coloring for direct parity with the PDF report's timeline.
+This is the single most technically interesting decision in the project — and the E2E test suite includes a permanent regression test for it.
 
-This is not a generic dark/cyan "AI dashboard." Every color, typeface, and motion choice ties back to the product's actual mechanism — calibrated optical measurement.
-
-## Screenshots
-
-<img src="docs/images/self-test-panel.png" alt="Self-test panel showing webcam preview, live attention gauge, landmark overlay, and auto-calibration metrics" width="720">
-<!-- Capture SelfTestPanel.tsx with webcam active, gauge at 100%, status pill showing Focused, and landmark overlay visible. Save as docs/images/self-test-panel.png -->
-
-<img src="docs/images/exam-results.png" alt="Exam results screen with score breakdown (exam score, integrity score, combined ProctorIQ score) and integrity verdict" width="720">
-<!-- Capture ResultsScreen.tsx after exam submission. Shows exam score (left column), integrity report with timeline (center), and combined ProctorIQ score (right column). Save as docs/images/exam-results.png -->
-
-<img src="docs/images/live-session.png" alt="Live session dashboard with real-time attention gauge, recharts attention timeline, event feed, blink indicator, and metric counters" width="720">
-<!-- Capture SessionPanel.tsx during an active session. Gauge should show current attention state, chart should have 10s+ of recorded data, event feed should list 3+ events. Save as docs/images/live-session.png -->
-
----
-
-## Why This Exists
-
-Proctoring systems typically stream raw video to a server for analysis — introducing latency, ongoing server GPU cost, and privacy exposure. ProctorIQ runs all face landmark extraction and ML inference in-browser via MediaPipe WASM and ONNX Runtime Web, so no video ever leaves the device. The server receives only structured event data (attention state, confidence, timestamp), making real-time feedback possible at 30fps without video storage or streaming infrastructure.
-
----
-
-## Results at a Glance
-
-| Metric | Value |
-|--------|-------|
-| Accuracy | 99.22% |
-| Macro F1 | 0.9918 |
-| Weighted F1 | 0.9922 |
-| Held-out test set | 384 samples |
-| Cross-validation (5-fold) | 0.995 ± 0.003 |
-
-<img src="docs/images/confusion_matrix.png" alt="Confusion matrix for the 4-class classifier: absent 104/104, distracted 91/92, drowsy 97/97, focused 89/91 — 3 total misclassifications between focused and distracted" width="480">
-
-The 1D-CNN achieves these results through confidence-gated switching: when model confidence is at least 0.6, the ML prediction is used; below that threshold, the rule engine takes over. This avoids the degradation of naive averaging (0.690 F1) and far exceeds the rule-only baseline (0.183 F1).
-
-Absent and drowsy classify perfectly — they have the most distinct landmark signatures. Focused and distracted account for all 3 misclassifications (2 focused→distracted, 1 distracted→focused).
-
-Full benchmark — [docs/BENCHMARK.md](docs/BENCHMARK.md)
-
----
-
-## Architecture
-
-<details>
-<summary>View full architecture diagram</summary>
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                            Client Browser                                │
-│                                                                          │
-│  ┌───────────────────────────────────────────────────────────────────┐   │
-│  │                    React App (Vite + TypeScript)                    │   │
-│  │                                                                     │   │
-│  │  ┌─────────┐  ┌──────────┐  ┌──────────┐  ┌───────────┐           │   │
-│  │  │ Landing │  │ Exam     │  │ Session  │  │ Report /  │           │   │
-│  │  │ (Self-  │  │ Panel    │  │ (Live    │  │ Trends /  │           │   │
-│  │  │  Test)  │  │          │  │  Dash)   │  │ Settings  │           │   │
-│  │  └────┬────┘  └────┬─────┘  └────┬─────┘  └─────┬─────┘           │   │
-│  │       │            │             │               │                  │   │
-│  │  ┌────▼────────────▼─────────────▼───────────────▼──────────────┐  │   │
-│  │  │              Zustand Store + IndexedDB (idb)                 │  │   │
-│  │  └──────────────────────────┬───────────────────────────────────┘  │   │
-│  │                             │                                       │   │
-│  │  ┌──────────────────────────▼───────────────────────────────────┐  │   │
-│  │  │              Detection Bridge (detection-bridge.ts)           │  │   │
-│  │  │  ┌────────────────────────────────────────────────────────┐  │  │   │
-│  │  │  │              Web Worker (detection.worker.ts)           │  │  │   │
-│  │  │  │  ┌──────────────┐  ┌───────────┐  ┌──────────────────┐│  │  │   │
-│  │  │  │  │  MediaPipe   │  │  solvePnP  │  │  ONNX Runtime    ││  │  │   │
-│  │  │  │  │  FaceLandmark │─>│  + Kalman  │  │  Web (1D-CNN)   ││  │  │   │
-│  │  │  │  │  er (WASM)   │  │  + EAR     │  │  (quantized)    ││  │  │   │
-│  │  │  │  └──────────────┘  └───────────┘  └──────────────────┘│  │  │   │
-│  │  │  └────────────────────────────────────────────────────────┘  │  │   │
-│  │  └──────────────────────────────────────────────────────────────┘  │   │
-│  │                                                                     │   │
-│  │  ┌──────────────────────────────┐  ┌───────────────────────────┐   │   │
-│  │  │  WebSocket Client (ws.ts)    │  │  Demo Mode (no camera)    │   │   │
-│  │  └─────────────┬────────────────┘  └───────────────────────────┘   │   │
-│  └────────────────┼───────────────────────────────────────────────────┘   │
-│                   │                                                       │
-└───────────────────┼───────────────────────────────────────────────────────┘
-                    │ WebSocket / HTTP
-┌───────────────────┼───────────────────────────────────────────────────────┐
-│                   │                                                       │
-│  ┌───────────────▼───────────────────────────────────────────────────┐   │
-│  │                      FastAPI Backend (Python)                      │   │
-│  │                                                                     │   │
-│  │  ┌──────────────┐  ┌───────────────┐  ┌─────────────┐  ┌────────┐  │   │
-│  │  │  REST API    │  │  WebSocket    │  │  Session    │  │ Report │  │   │
-│  │  │  /health     │  │  /ws/{id}     │  │  Store      │  │ Gen    │  │   │
-│  │  │  /api/session│  │  /ws/room/{id}│  │  (InMemory) │  │ (PDF + │  │   │
-│  │  │  /api/verify │  │               │  │             │  │ Sign)  │  │   │
-│  │  │  /api/rooms  │  │               │  │             │  │        │  │   │
-│  │  └──────────────┘  └───────────────┘  └─────────────┘  └────────┘  │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
-</details>
-
----
-
-## Engineering Decisions
-
-Selected rationale from the full [decision log](docs/ARCHITECTURE.md).
-
-1. **In-browser inference vs server-side rendering** — Face landmark extraction runs in-browser via MediaPipe WASM. Eliminates RTT latency (0ms vs 100ms+), keeps video off the wire, and removes the need for GPU servers.
-
-2. **1D-CNN vs LSTM** — Landmark windows span 30 frames (~1s), too short for LSTM temporal memory. The 1D-CNN is ~3x faster in ONNX Runtime Web and achieves matching accuracy (0.992 F1 on test set).
-
-3. **Hybrid confidence-gating vs pure ML** — Rule engine runs every frame for instant feedback; the 1D-CNN runs every 30 frames with confidence-gated switching (threshold at 0.6). Avoids the 0.690 F1 degradation of naive averaging while maintaining <15ms per-frame latency.
-
-4. **Kalman filtering on landmarks** — Raw MediaPipe landmarks jitter by ±2-3° per frame. A 6-D Kalman filter reduces jitter to ±0.5°, critical for stable threshold-based detection in the rule engine.
-
----
-
-## Tech Stack
-
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| **Face Detection** | MediaPipe Tasks-Vision WASM | In-browser landmarks — zero server cost, privacy |
-| **ML Inference** | ONNX Runtime Web (quantized int8) | 0.6MB model, <15ms inference in Web Worker |
-| **Frontend** | React 18 + TypeScript + Vite | Fast dev experience, strict typing |
-| **State** | Zustand 4 + IndexedDB (idb) | Minimal boilerplate, privacy-first local storage |
-| **WebSocket** | FastAPI + custom client with reconnection | Push-based real-time updates, <5ms latency |
-| **Backend** | FastAPI + uvicorn | Async-native, built-in WebSocket support |
-| **PDF Reports** | ReportLab + Pillow | Production-grade PDF with embedded timeline PNG |
-| **Signing** | SHA-256 (backend hashlib + frontend Web Crypto) | Tamper-evident report integrity |
-| **Animation** | Framer Motion | Declarative spring animations for gauge/score |
-| **Charts** | Recharts | Live attention timeline and trends |
-| **Styling** | Tailwind CSS | Utility-first, rapid prototyping |
-| **Computer Vision** | OpenCV (solvePnP) + filterpy (Kalman) | Head pose estimation + smoothing |
-| **ML Training** | PyTorch + scikit-learn + ONNX | Train on collected landmarks, export to ONNX |
+> For the full reasoning, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#11-hmac-sha256-report-signing-vs-server-database-as-source-of-truth).
 
 ---
 
@@ -186,7 +37,147 @@ cd frontend && npm install && cd ..
 docker compose up --build
 ```
 
-Open [http://localhost:5173](http://localhost:5173). The frontend proxies API calls to the backend at `http://localhost:8000`.
+Open [http://localhost:3000](http://localhost:3000) (or [http://localhost:5173](http://localhost:5173) for the Vite dev server).
+
+### Manual start (without Docker)
+
+```bash
+# Terminal 1 — Backend
+cd backend
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2 — Frontend
+cd frontend
+npm run dev
+```
+
+---
+
+## How It Works
+
+### Architecture at a Glance
+
+```
+Browser (MediaPipe WASM → ONNX Runtime Web) ──WebSocket──> FastAPI Backend
+       │                                                    │
+       │  structured events only (no video)                  │  HMAC-SHA256 sign
+       │                                                    │  PDF report generation
+       ▼                                                    ▼
+  Aperture Gauge (live)                              Signed Report (tamper-proof)
+```
+
+- **Client**: MediaPipe extracts 478 face landmarks → solvePnP computes head pose (yaw/pitch/roll) + EAR → 6-D Kalman filter smooths → rule engine + optional 1D-CNN → events streamed via WebSocket
+- **Server**: Receives events → recomputes score → HMAC-SHA256 signs canonical payload → generates PDF report with embedded timeline
+- **No video stored**: The server never receives or stores video frames. What it receives is `{"event_type": "distracted", "timestamp_s": 12.5, "confidence": 0.87}`
+
+### Key Numbers
+
+| Metric | Value |
+|--------|-------|
+| Model accuracy | 99.22% |
+| Macro F1 | 0.9918 |
+| Cross-validation (5-fold) | 0.995 ± 0.003 |
+| Model size (quantized) | 0.6 MB |
+| Inference latency (ML) | <15ms in Web Worker |
+| Per-frame rule latency | ~0.5ms |
+| Kalman-filtered jitter | ±0.5° (down from ±2-3°) |
+
+Full benchmark at [docs/BENCHMARK.md](docs/BENCHMARK.md).
+
+---
+
+## What You Can Do With It
+
+### 1. Self-Test / Focus Coach
+
+Open the app, grant camera access, and see the **ApertureGauge** respond in real time. An 8-blade camera-iris diaphragm opens/closes based on attention confidence, interpolating through a six-color semantic palette in OKLCH space. No signup, no server round-trip — everything runs locally.
+
+### 2. Host a Live Exam
+
+Click "Host Exam" from the landing page to create a room. Share the join link (or QR code) with anyone. Participants join without creating accounts. The host dashboard shows:
+- Live attention states for every participant in a responsive card grid
+- Sort by flagged participants or search by name
+- WebSocket-broadcast updates with <5ms latency
+- End the exam and download a ZIP of individually signed PDF reports + summary CSV
+
+### 3. Verify Report Integrity
+
+Each signed PDF report includes a SHA-256 HMAC over the server-computed score, verdict, and event sequence. The verification endpoint re-computes the expected hash: if it matches, the report seal reads "Server-Verified." If not, "Local Draft" — meaning the report cannot be trusted.
+
+---
+
+## Routes
+
+| Route | Description |
+|-------|-------------|
+| `/` | Main app — 6-panel carousel (Landing → Exam → Session → Report → Trends → Settings) |
+| `/host` | Create a new exam room |
+| `/host/{room_id}` | Mission Control dashboard for an existing room |
+| `/join/{room_id}` | Participant join page (no signup required) |
+| `/cohort/{room_id}` | Live cohort dashboard |
+
+---
+
+## Design — "Aperture"
+
+ProctorIQ's visual system is inspired by premium optical instruments (Leica, Zeiss), executed with restraint:
+
+- **Titanium neutrals** — Cool brushed-metal light grays in light mode; warm charcoal in Night Session
+- **Six-color semantic palette** — Each color has exactly one job
+- **Three-typeface system** — Fraunces (display serif), Inter Variable (UI sans), Martian Mono (data mono)
+- **ApertureGauge** — 8-blade camera-iris diaphragm with Framer Motion spring physics
+
+---
+
+## Test Coverage
+
+| Layer | Tool | What's tested |
+|-------|------|---------------|
+| Backend unit | pytest + mypy | API routes, session store, signature verification, scoring logic |
+| Frontend type/lint | tsc + eslint | TypeScript strict mode, code quality |
+| E2E (browser) | Playwright | Self-test flow, host-exam room creation + multi-participant join, API integrity tampering regression |
+| Integrity regression | Playwright + API | PATCH with forged score → verify server-computed value prevails; event tampering → signature mismatch |
+
+E2E tests use `--use-fake-device-for-media-stream` so they run in CI without a real webcam.
+
+---
+
+## Limitations
+
+### In-Memory Stores (Single Worker)
+
+Session and room data lives in Python `dict` objects — no process restart survival, no multi-worker support. The backend is pinned to `--workers 1` in production. If horizontal scaling becomes necessary, swap `InMemorySessionStore`/`InMemoryRoomStore` for Redis-backed implementations behind the same `typing.Protocol` interface. Estimated effort: ~2 days.
+
+### Client-Side Detection Trust Boundary
+
+The HMAC signature protects the server-computed *score* from tampering, but cannot prevent fabricated landmark *input*. Any proctoring system without a locked-down browser environment faces the same constraint.
+
+### Other Known Constraints
+
+- **solvePnP degrades past ~70° yaw** — Profile view causes landmark occlusion
+- **Low light (< 50 lux)** — MediaPipe landmark confidence drops; rule-based fallback engages
+- **Dark skin in low light** — Documented ~8-12% lower detection rate in MediaPipe
+- **IndexedDB storage** — ~50MB cap (~500 sessions) before export/clear required
+- **Single-person focus** — Multi-face detection logs but does not distinguish individuals
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Face Detection | MediaPipe Tasks-Vision WASM |
+| ML Inference | ONNX Runtime Web (quantized int8, 0.6MB) |
+| Frontend | React 18 + TypeScript + Vite + Tailwind CSS |
+| State | Zustand 4 + IndexedDB (idb) |
+| Real-time | WebSocket (FastAPI + custom reconnection client) |
+| Backend | FastAPI + uvicorn (single worker) |
+| PDF Reports | ReportLab + Pillow |
+| Signing | SHA-256 HMAC (backend hashlib + frontend Web Crypto) |
+| Animation | Framer Motion |
+| Charts | Recharts |
+| CV | OpenCV (solvePnP) + filterpy (Kalman) |
+| ML Training | PyTorch + scikit-learn + ONNX |
 
 ---
 
@@ -206,82 +197,23 @@ Open [http://localhost:5173](http://localhost:5173). The frontend proxies API ca
 | `PATCH` | `/api/sessions/{id}` | Update session |
 | `DELETE` | `/api/sessions/{id}` | Blank session → `204` |
 | `GET` | `/api/sessions/{id}/report` | Download signed PDF report |
-| `POST` | `/api/rooms` | Create cohort room → `201` with `room_id`, `host_token`, `join_url` |
+| `POST` | `/api/rooms` | Create cohort room → `201` |
 | `GET` | `/api/rooms/{id}` | Get room details + members |
-| `GET` | `/api/rooms/{id}/join-check` | Check if room is joinable (not full/closed) |
-| `POST` | `/api/rooms/{id}/close` | Close exam (X-Host-Token required) → `200` |
-| `GET` | `/api/rooms/{id}/reports` | List participant reports, or `?format=zip` for download |
-| `POST` | `/api/verify` | Verify signature `{session_id, signature}` → `{valid: bool}` |
-| `GET` | `/api/verify/{id}` | Get stored SHA-256 hash for session |
+| `GET` | `/api/rooms/{id}/join-check` | Check if room is joinable |
+| `POST` | `/api/rooms/{id}/close` | Close exam (X-Host-Token required) |
+| `GET` | `/api/rooms/{id}/reports` | Participant reports (`?format=zip`) |
+| `POST` | `/api/verify` | Verify signature → `{valid: bool}` |
+| `GET` | `/api/verify/{id}` | Get stored SHA-256 hash |
 
-### WebSocket Endpoints
+### WebSocket
 
-#### `/ws/{session_id}` (Session Stream)
-
-- **Query params:** `room_id`, `display_name`
-- **Client → Server:**
-  - `{"type": "flag", "event_type": "distracted", "timestamp_s": 12.5, "confidence": 0.87, "details": {"yaw": 31.2}}`
-  - `{"type": "state", "attention_state": "focused", "ear": 0.28, "head_pose": {"yaw": 2.1, "pitch": 5.3, "roll": 1.2}, "face_count": 1}`
-  - `{"type": "heartbeat"}`
-  - `{"type": "benchmark", "model_latency_ms": 8.2, "inference_count": 150, "pca_latency_ms": 0.3}`
-- **Server → Client:**
-  - `{"type": "tick", "session_id": "...", "timestamp_s": 30, "attention_state": "focused", "ear": 0.28, "head_pose": {...}, "face_count": 1, "events_since_tick": [...], "running_score": -0.02, "room_id": null, "display_name": null}`
-
-#### `/ws/room/{room_id}` (Cohort Broadcast)
-
-- On connect: receives current room state (all members).
-- Server broadcasts `room_update` on any member change.
-- Client sends `{"type": "ping"}` → server responds `{"type": "pong"}`.
+- `/ws/{session_id}` — Session event stream (client sends events, server broadcasts ticks)
+- `/ws/room/{room_id}` — Cohort broadcast (server broadcasts member updates)
 
 </details>
-
-<!-- Add live Vercel URL here once deployed -->
-
----
-
-## Host a Live Exam
-
-ProctorIQ supports real-time multi-participant proctoring with a shareable link, no signup required for participants.
-
-### Flow
-
-1. **Creation** — Navigate to `/host` and enter an exam title, optional duration, and optional max participants. Click "Create Exam" to generate a room.
-2. **Share** — After creation, you receive a shareable link and QR code. Anyone with this link can join directly — no account needed.
-3. **Mission Control** — Once participants join, the host dashboard shows live attention states, scores, sparkline charts, and connection status for every participant in a responsive card grid. Sort by flagged participants or search by name.
-4. **Close & Reports** — Click "End Exam" to close the room (preventing new joins). Download a combined ZIP containing individual signed PDF reports per participant plus a summary CSV.
-
-### Routes
-
-| Route | Description |
-|-------|-------------|
-| `/host` | Create a new exam room |
-| `/host/{room_id}` | Mission Control dashboard for existing room |
-| `/join/{room_id}` | Participant join page (no signup required) |
-
-### Host Token
-
-The `host_token` is returned once at room creation and persisted in localStorage. It is required via `X-Host-Token` header for `/close` and `/reports` endpoints. It is never exposed via GET endpoints.
-
----
-
-## Limitations
-
-- **solvePnP degrades past ~70° yaw** — Profile view causes key landmark occlusion. Detection continues with reduced accuracy; Kalman filter smooths the transition.
-- **Low light (< 50 lux)** — MediaPipe landmark confidence drops significantly. Rule-based fallback engages (reports absent when no landmarks found).
-- **Dark skin in low light** — MediaPipe has documented ~8-12% lower detection rate.
-- **Eyeglass distortion** — Strong lenses distort eye landmark positions. EAR measurements become less reliable.
-- **1s ML latency** — The 30-frame buffer means ML lags by ~1s. Rule engine catches rapid changes in real time.
-- **Single-person focus** — Multi-face detection logs the event but does not distinguish which face is the test-taker.
-- **IndexedDB storage** — Capped at ~50MB on most browsers, bounding local session history.
 
 ---
 
 ## License
 
 MIT © 2026 Harsh Dubey. See [LICENSE](LICENSE).
-
----
-
-## Contributing
-
-Issues and pull requests are welcome — see the [Issues tab](https://github.com/HarshDubey23/ProctorIQ/issues).
