@@ -9,8 +9,6 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from backend.core.room_store import InMemoryRoomStore
 from backend.cv.scoring import FlagEvent, compute_attention_score
@@ -19,9 +17,6 @@ from backend.report.pdf import generate_session_pdf
 from backend.report.signing import sign_session
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
-
-_room_limiter = Limiter(key_func=get_remote_address, default_limits=["10/hour"])
-_join_limiter = Limiter(key_func=get_remote_address, default_limits=["20/minute"])
 
 
 class CreateRoomRequest(BaseModel):
@@ -52,13 +47,52 @@ async def _require_host_token(
         raise HTTPException(status_code=403, detail="Invalid host token")
 
 
+def _check_room_rate_limit(request: Request, key: str, max_per_hour: int = 10) -> None:
+    """Simple in-memory per-app rate limiter using app.state."""
+    import time
+
+    state = request.app.state
+    if not hasattr(state, "_room_rate_limits"):
+        state._room_rate_limits = {}
+
+    now = time.time()
+    window = 3600  # 1 hour
+    limits = state._room_rate_limits
+    if key not in limits:
+        limits[key] = []
+    limits[key] = [t for t in limits[key] if now - t < window]
+    if len(limits[key]) >= max_per_hour:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    limits[key].append(now)
+
+
+def _check_join_rate_limit(request: Request, key: str, max_per_minute: int = 20) -> None:
+    """Simple in-memory per-app rate limiter using app.state."""
+    import time
+
+    state = request.app.state
+    if not hasattr(state, "_join_rate_limits"):
+        state._join_rate_limits = {}
+
+    now = time.time()
+    window = 60
+    limits = state._join_rate_limits
+    if key not in limits:
+        limits[key] = []
+    limits[key] = [t for t in limits[key] if now - t < window]
+    if len(limits[key]) >= max_per_minute:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    limits[key].append(now)
+
+
 @router.post("", status_code=201)
-@_room_limiter.limit("10/hour")
 async def create_room(
     body: CreateRoomRequest,
     request: Request,
     store: InMemoryRoomStore = Depends(_get_room_store),
 ) -> dict[str, str]:
+    from slowapi.util import get_remote_address
+    _check_room_rate_limit(request, get_remote_address(request))
     room = await store.create_room(
         title=body.title,
         duration_minutes=body.duration_minutes,
@@ -103,12 +137,13 @@ async def get_room(
 
 
 @router.get("/{room_id}/join-check")
-@_join_limiter.limit("20/minute")
 async def check_room_join(
     room_id: str,
     request: Request,
     store: InMemoryRoomStore = Depends(_get_room_store),
 ) -> dict[str, Any]:
+    from slowapi.util import get_remote_address
+    _check_join_rate_limit(request, get_remote_address(request))
     room = await store.get_room(room_id)
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -201,7 +236,7 @@ async def get_room_reports(
         })
 
     if format == "zip":
-        return _build_zip_response(reports, room, session_store)
+        return await _build_zip_response(reports, room, session_store)
 
     return {
         "room_id": room_id,
@@ -211,20 +246,14 @@ async def get_room_reports(
     }
 
 
-def _build_zip_response(
+async def _build_zip_response(
     reports: list[dict[str, Any]],
     room: Any,
     session_store: Any,
 ) -> StreamingResponse:
     pdf_sessions = {}
     for r in reports:
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        session = loop.run_until_complete(session_store.get_session(r["session_id"]))
+        session = await session_store.get_session(r["session_id"])
         if session:
             pdf_sessions[r["session_id"]] = session
 
@@ -240,7 +269,6 @@ def _build_zip_response(
                 "verdict": r["verdict"],
                 "signed_hash": r["signed_hash"],
             })
-
             session = pdf_sessions.get(r["session_id"])
             if session:
                 pdf_bytes = generate_session_pdf(session)
