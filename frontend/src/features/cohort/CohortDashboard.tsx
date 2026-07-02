@@ -77,12 +77,13 @@ export function CohortDashboard({ roomId }: CohortDashboardProps) {
             <span className="font-mono text-[22px] tabular-nums tracking-wider" style={{ color: 'var(--jade)' }}>
               {roomId}
             </span>
-            <button
-              onClick={handleCopy}
-              className="rounded-md p-1.5 transition-colors"
-              style={{ backgroundColor: 'var(--surface-1)', color: 'var(--ink-muted)' }}
-              title="Copy room code"
-            >
+<button
+  onClick={handleCopy}
+  className="rounded-md p-1.5 transition-colors"
+  style={{ backgroundColor: 'var(--surface-1)', color: 'var(--ink-muted)' }}
+  title="Copy room code"
+  aria-label="Copy room code"
+>
               <Copy size={14} />
             </button>
             {copied && (

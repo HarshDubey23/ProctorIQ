@@ -244,7 +244,7 @@ async function loadONNX(url: string): Promise<void> {
     const buf = await resp.arrayBuffer();
     session = await ort.InferenceSession.create(buf);
     mlEnabled = true;
-    console.log('[worker] ONNX loaded');
+    if (import.meta.env.DEV) console.log('[worker] ONNX loaded');
   } catch (err) {
     console.warn('[worker] ONNX load failed, rule-only:', err);
     ruleOnly = true;
@@ -281,7 +281,7 @@ async function loadPCA(url: string): Promise<void> {
       nComponents: raw.n_components,
       nFeatures: raw.n_features,
     };
-    console.log('[worker] PCA loaded:', raw.n_components, 'components');
+    if (import.meta.env.DEV) console.log('[worker] PCA loaded:', raw.n_components, 'components');
   } catch (err) {
     console.warn('[worker] PCA load failed, rule-only:', err);
     ruleOnly = true;
@@ -298,7 +298,7 @@ async function loadLabels(url: string): Promise<void> {
       ordered[idx] = label;
     }
     CLASS_NAMES = ordered;
-    console.log('[worker] Labels loaded:', CLASS_NAMES);
+    if (import.meta.env.DEV) console.log('[worker] Labels loaded:', CLASS_NAMES);
   } catch (err) {
     console.warn('[worker] Labels load failed, using defaults:', err);
   }
@@ -496,6 +496,6 @@ self.onmessage = async (e: MessageEvent<InMessage>) => {
     if (t.drowsyEarThreshold != null) BLINK_EAR_THRESH = t.drowsyEarThreshold;
     if (t.yawThreshold != null) YAW_THRESHOLD_DEG = t.yawThreshold;
     if (t.pitchThreshold != null) PITCH_THRESHOLD_DEG = t.pitchThreshold;
-    console.log('[worker] thresholds updated:', t);
+    if (import.meta.env.DEV) console.log('[worker] thresholds updated:', t);
   }
 };

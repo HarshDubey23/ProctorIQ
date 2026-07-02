@@ -41,6 +41,8 @@ jobs:
         run: cd frontend && npm run lint
       - name: Type check
         run: cd frontend && npx tsc --noEmit
+      - name: Unit tests
+        run: cd frontend && npm run test
       - name: Build
         run: cd frontend && npm run build
 
