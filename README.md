@@ -206,8 +206,11 @@ Open [http://localhost:5173](http://localhost:5173). The frontend proxies API ca
 | `PATCH` | `/api/sessions/{id}` | Update session |
 | `DELETE` | `/api/sessions/{id}` | Blank session → `204` |
 | `GET` | `/api/sessions/{id}/report` | Download signed PDF report |
-| `POST` | `/api/rooms` | Create cohort room → `201` with `room_id` (6-char) |
+| `POST` | `/api/rooms` | Create cohort room → `201` with `room_id`, `host_token`, `join_url` |
 | `GET` | `/api/rooms/{id}` | Get room details + members |
+| `GET` | `/api/rooms/{id}/join-check` | Check if room is joinable (not full/closed) |
+| `POST` | `/api/rooms/{id}/close` | Close exam (X-Host-Token required) → `200` |
+| `GET` | `/api/rooms/{id}/reports` | List participant reports, or `?format=zip` for download |
 | `POST` | `/api/verify` | Verify signature `{session_id, signature}` → `{valid: bool}` |
 | `GET` | `/api/verify/{id}` | Get stored SHA-256 hash for session |
 
@@ -233,6 +236,31 @@ Open [http://localhost:5173](http://localhost:5173). The frontend proxies API ca
 </details>
 
 <!-- Add live Vercel URL here once deployed -->
+
+---
+
+## Host a Live Exam
+
+ProctorIQ supports real-time multi-participant proctoring with a shareable link, no signup required for participants.
+
+### Flow
+
+1. **Creation** — Navigate to `/host` and enter an exam title, optional duration, and optional max participants. Click "Create Exam" to generate a room.
+2. **Share** — After creation, you receive a shareable link and QR code. Anyone with this link can join directly — no account needed.
+3. **Mission Control** — Once participants join, the host dashboard shows live attention states, scores, sparkline charts, and connection status for every participant in a responsive card grid. Sort by flagged participants or search by name.
+4. **Close & Reports** — Click "End Exam" to close the room (preventing new joins). Download a combined ZIP containing individual signed PDF reports per participant plus a summary CSV.
+
+### Routes
+
+| Route | Description |
+|-------|-------------|
+| `/host` | Create a new exam room |
+| `/host/{room_id}` | Mission Control dashboard for existing room |
+| `/join/{room_id}` | Participant join page (no signup required) |
+
+### Host Token
+
+The `host_token` is returned once at room creation and persisted in localStorage. It is required via `X-Host-Token` header for `/close` and `/reports` endpoints. It is never exposed via GET endpoints.
 
 ---
 
