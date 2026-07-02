@@ -8,7 +8,6 @@ services:
     env_file:
       - ./backend/.env
     restart: unless-stopped
-    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1
 
   frontend:
     build: ./frontend
