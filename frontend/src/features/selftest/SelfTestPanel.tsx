@@ -311,25 +311,25 @@ export function SelfTestPanel() {
             <div className="p-4" style={{ borderTop: '1px solid var(--hairline)', backgroundColor: 'var(--surface-1)' }}>
               <div className="flex flex-col gap-3">
                 <div className="grid grid-cols-2 gap-3 text-center">
-                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)' }}>
+                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
                     <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>Yaw</div>
                     <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
                       {result ? ((result.headPose.yaw * 180) / Math.PI).toFixed(1) : '—'}°
                     </div>
                   </div>
-                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)' }}>
+                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
                     <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>Pitch</div>
                     <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
                       {result ? ((result.headPose.pitch * 180) / Math.PI).toFixed(1) : '—'}°
                     </div>
                   </div>
-                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)' }}>
+                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
                     <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>Roll</div>
                     <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
                       {result ? ((result.headPose.roll * 180) / Math.PI).toFixed(1) : '—'}°
                     </div>
                   </div>
-                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)' }}>
+                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
                     <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>EAR</div>
                     <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
                       {result ? ((result.ear.left + result.ear.right) / 2).toFixed(3) : '—'}
@@ -337,13 +337,13 @@ export function SelfTestPanel() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-center">
-                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)' }}>
+                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
                     <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>Faces</div>
                     <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
                       {result?.faceCount ?? '—'}
                     </div>
                   </div>
-                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)' }}>
+                  <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-2)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
                     <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>Blinks/min</div>
                     <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
                       {result?.blinkRate ?? '—'}

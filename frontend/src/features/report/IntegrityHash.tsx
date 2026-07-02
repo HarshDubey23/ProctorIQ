@@ -43,7 +43,7 @@ export function IntegrityHash({ sessionId, hash, serverVerified = false }: Integ
   }, [verifyInput, sessionId]);
 
   return (
-    <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--hairline)' }}>
+    <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--hairline)', borderTop: '1px solid var(--edge-highlight)', boxShadow: 'var(--shadow-sm)' }}>
       <div className="mb-3 flex items-center gap-2">
         {serverVerified && showSeal ? (
           <motion.div
@@ -102,6 +102,8 @@ export function IntegrityHash({ sessionId, hash, serverVerified = false }: Integ
           style={{
             backgroundColor: 'var(--surface-2)',
             border: '1px solid var(--hairline-strong)',
+            borderTop: '1px solid var(--edge-highlight)',
+            boxShadow: 'var(--shadow-sm)',
             color: 'var(--cobalt)',
           }}
         >
@@ -124,6 +126,8 @@ export function IntegrityHash({ sessionId, hash, serverVerified = false }: Integ
           style={{
             backgroundColor: 'var(--surface-2)',
             border: '1px solid var(--hairline-strong)',
+            borderTop: '1px solid var(--edge-highlight)',
+            boxShadow: 'var(--shadow-sm)',
             color: 'var(--ink)',
           }}
           placeholder="Paste hash to verify..."

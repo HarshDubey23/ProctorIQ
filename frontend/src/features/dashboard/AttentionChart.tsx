@@ -42,7 +42,7 @@ function lineColor(label: string): string {
 export function AttentionChart({ data }: AttentionChartProps) {
   if (data.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center rounded-xl p-6" style={{ backgroundColor: 'var(--surface-1)' }}>
+      <div className="flex h-full items-center justify-center rounded-xl p-6" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
         <span className="font-sans text-sm italic" style={{ color: 'var(--ink-faint)' }}>
           No data yet
         </span>
@@ -54,7 +54,7 @@ export function AttentionChart({ data }: AttentionChartProps) {
   const activeColor = lineColor(lastLabel);
 
   return (
-    <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-1)' }}>
+    <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
       <ResponsiveContainer width="100%" height={180}>
         <LineChart data={data} margin={{ top: 8, right: 8, bottom: 8, left: -20 }}>
           <defs>

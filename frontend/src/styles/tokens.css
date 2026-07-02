@@ -71,6 +71,9 @@
   --shadow-lg: 0 8px 32px rgba(20, 24, 26, 0.08);
   --shadow-xl: 0 16px 48px rgba(20, 24, 26, 0.10);
 
+  /* --- Edge highlight for cards (light mode) --- */
+  --edge-highlight: rgba(255, 255, 255, 0.06);
+
   /* ================================================================
      2. TYPE SCALE — 1.25 ratio (Minor Third)
      ================================================================ */
@@ -128,6 +131,9 @@
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
+
+  /* Edge highlight for cards (dark mode — brighter) */
+  --edge-highlight: rgba(255, 255, 255, 0.08);
 }
 
 /* ================================================================

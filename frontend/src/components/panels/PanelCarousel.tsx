@@ -1,15 +1,29 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useUIStore, PANEL_ORDER, type PanelId } from '../../store/ui';
 import { panelTransition } from '../../motion.config';
 import { PanelShell } from './PanelShell';
-import { SelfTestPanel } from '../../features/selftest/SelfTestPanel';
-import { ExamPanel } from '../../features/exam/ExamPanel';
-import { SessionPanel } from '../../features/dashboard/SessionPanel';
-import { ReportPanel } from '../../features/report/ReportPanel';
-import { TrendsPanel } from '../../features/trends/TrendsPanel';
-import { SettingsPanel } from '../../features/settings/SettingsPanel';
+import { LandingScreen } from '../landing/LandingScreen';
+
+const ExamPanel = lazy(() => import('../../features/exam/ExamPanel').then(m => ({ default: m.ExamPanel })));
+const SessionPanel = lazy(() => import('../../features/dashboard/SessionPanel').then(m => ({ default: m.SessionPanel })));
+const ReportPanel = lazy(() => import('../../features/report/ReportPanel').then(m => ({ default: m.ReportPanel })));
+const TrendsPanel = lazy(() => import('../../features/trends/TrendsPanel').then(m => ({ default: m.TrendsPanel })));
+const SettingsPanel = lazy(() => import('../../features/settings/SettingsPanel').then(m => ({ default: m.SettingsPanel })));
+
+function PanelSkeleton() {
+  return (
+    <div className="flex h-full w-full items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-2" style={{ borderColor: 'var(--cobalt)', borderTopColor: 'transparent' }} />
+        <span className="font-sans text-xs uppercase tracking-widest" style={{ color: 'var(--ink-muted)' }}>
+          Loading…
+        </span>
+      </div>
+    </div>
+  );
+}
 
 interface PanelConfig {
   id: PanelId;
@@ -161,17 +175,27 @@ export function PanelCarousel() {
               onCtaClick={isActive ? panel.onCtaClick : undefined}
             >
               {panel.id === 'landing' && isActive ? (
-                <SelfTestPanel />
+                <LandingScreen />
               ) : panel.id === 'exam' && isActive ? (
-                <ExamPanel />
+                <Suspense fallback={<PanelSkeleton />}>
+                  <ExamPanel />
+                </Suspense>
               ) : panel.id === 'session' && isActive ? (
-                <SessionPanel />
+                <Suspense fallback={<PanelSkeleton />}>
+                  <SessionPanel />
+                </Suspense>
               ) : panel.id === 'report' && isActive ? (
-                <ReportPanel />
+                <Suspense fallback={<PanelSkeleton />}>
+                  <ReportPanel />
+                </Suspense>
               ) : panel.id === 'trends' && isActive ? (
-                <TrendsPanel />
+                <Suspense fallback={<PanelSkeleton />}>
+                  <TrendsPanel />
+                </Suspense>
               ) : panel.id === 'settings' && isActive ? (
-                <SettingsPanel />
+                <Suspense fallback={<PanelSkeleton />}>
+                  <SettingsPanel />
+                </Suspense>
               ) : (
                 <div className="flex h-full items-center justify-center">
                   <span className="font-display text-xl uppercase tracking-[0.15em] text-text-secondary">

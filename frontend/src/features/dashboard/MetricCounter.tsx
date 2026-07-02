@@ -13,7 +13,7 @@ export function MetricCounter({ value, label, suffix = '', color = 'var(--ink)' 
   const reducedMotion = useReducedMotion();
 
   return (
-    <div className="flex flex-col items-center gap-1 rounded-xl p-3" style={{ backgroundColor: 'var(--surface-1)' }}>
+    <div className="flex flex-col items-center gap-1 rounded-xl p-3" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
       <motion.span
         className="font-display text-[22px] leading-none tabular-nums"
         style={{ color }}

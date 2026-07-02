@@ -28,6 +28,7 @@ export function ProctorOverlay({ score, attentionLabel, isVisible }: ProctorOver
         style={{
           backgroundColor: 'var(--surface-2)',
           border: '1px solid var(--hairline)',
+          borderTop: '1px solid var(--edge-highlight)',
           boxShadow: 'var(--shadow-lg)',
         }}
       >

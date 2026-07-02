@@ -47,7 +47,7 @@ export function EventFeed({ events }: EventFeedProps) {
   if (events.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl p-6"
-        style={{ backgroundColor: 'var(--surface-1)' }}>
+        style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
         <div className="h-8 w-8 rounded-full border-2 border-dashed" style={{ borderColor: 'var(--hairline-strong)' }} />
         <span className="font-sans text-sm italic" style={{ color: 'var(--ink-faint)' }}>
           No events yet
@@ -76,6 +76,8 @@ export function EventFeed({ events }: EventFeedProps) {
             style={{
               borderLeft: `3px solid ${borderColor}`,
               backgroundColor: 'var(--surface-1)',
+              boxShadow: 'var(--shadow-sm)',
+              borderTop: '1px solid var(--edge-highlight)',
             }}
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}

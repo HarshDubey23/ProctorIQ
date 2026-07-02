@@ -136,7 +136,7 @@ export function ResultsScreen({
                 <div
                   key={q.id}
                   className="flex items-center gap-3 rounded-lg px-3 py-2"
-                  style={{ backgroundColor: 'var(--surface-1)' }}
+                  style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}
                 >
                   <span
                     className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[11px] tabular-nums"
@@ -197,7 +197,7 @@ export function ResultsScreen({
         animate={showContent ? { opacity: 1, x: 0 } : { opacity: 0, x: 24 }}
         transition={{ duration: 0.5, ease: 'easeOut', delay: 0.15 }}
       >
-        <div className="flex justify-around rounded-xl p-3" style={{ backgroundColor: 'var(--surface-1)' }}>
+        <div className="flex justify-around rounded-xl p-3" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-md)', borderTop: '1px solid var(--edge-highlight)' }}>
           <div className="text-center">
             <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
               {integrityScoreValue}
@@ -230,7 +230,7 @@ export function ResultsScreen({
           </h3>
           <div className="flex flex-col gap-1">
             {Object.entries(eventCounts).map(([type, count]) => (
-              <div key={type} className="flex justify-between rounded px-3 py-1.5" style={{ backgroundColor: 'var(--surface-1)' }}>
+              <div key={type} className="flex justify-between rounded px-3 py-1.5" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
                 <span className="font-sans text-sm capitalize" style={{ color: 'var(--ink)' }}>
                   {type.replace(/_/g, ' ')}
                 </span>
@@ -258,7 +258,7 @@ export function ResultsScreen({
               </span>
             ) : (
               events.map((e, i) => (
-                <div key={`ev-${i}`} className="flex items-center gap-2 rounded px-3 py-1" style={{ backgroundColor: 'var(--surface-1)' }}>
+                <div key={`ev-${i}`} className="flex items-center gap-2 rounded px-3 py-1" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: 'var(--ochre)' }} />
                   <span className="flex-1 font-sans text-sm capitalize" style={{ color: 'var(--ink)' }}>
                     {e.type.replace(/_/g, ' ')}
@@ -272,7 +272,7 @@ export function ResultsScreen({
           </div>
         </div>
 
-        <div className="rounded-xl px-3 py-2" style={{ backgroundColor: 'var(--surface-1)' }}>
+        <div className="rounded-xl px-3 py-2" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
           <div className="font-sans text-[10px] uppercase tracking-[0.1em] mb-1" style={{ color: 'var(--ink-faint)' }}>
             Report Hash (SHA-256)
           </div>
@@ -323,6 +323,8 @@ export function ResultsScreen({
             style={{
               backgroundColor: 'var(--surface-1)',
               color: 'var(--ink)',
+              boxShadow: 'var(--shadow-sm)',
+              borderTop: '1px solid var(--edge-highlight)',
             }}
             onClick={onRetake}
             aria-label="Take another exam"

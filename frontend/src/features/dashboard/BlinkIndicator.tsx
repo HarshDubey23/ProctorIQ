@@ -8,7 +8,7 @@ export function BlinkIndicator({ earLeft, earRight }: BlinkIndicatorProps) {
   const isClosed = avg < 0.21;
 
   return (
-    <div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ backgroundColor: 'var(--surface-1)' }}>
+    <div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
       <div className="flex items-center gap-2">
         <div
           className="h-3 w-3 rounded-full transition-colors duration-200"
