@@ -11,7 +11,7 @@ test.describe('Self-Test Flow', () => {
 
   test('navigates to session panel via carousel dots', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: /Go to Session panel/i }).click();
+    await page.getByRole('button', { name: /Go to LIVE SESSION panel/i }).click();
     await expect(page.getByRole('group')).toHaveCount(6);
   });
 

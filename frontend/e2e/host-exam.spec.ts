@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const API_BASE = process.env.CI ? 'http://backend:8000' : 'http://localhost:8000';
+const API_BASE = 'http://localhost:8000';
 
 test.describe('Host Exam Flow', () => {
   test.describe('Room creation via API', () => {
