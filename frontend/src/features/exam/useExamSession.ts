@@ -132,7 +132,8 @@ export function useExamSession() {
           setSessionRegistered(false);
           setState('in_progress');
           registerSession(sid, startTimeRef.current);
-          wsConnect(sid);
+          const roomId = sessionStorage.getItem('exam_room_id') || undefined;
+          wsConnect(sid, { roomId });
           startTimer();
           return 0;
         }

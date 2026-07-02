@@ -39,7 +39,12 @@ export function useProctoringSocket() {
     prevAttentionRef.current = 'focused';
     lastFlagTimeRef.current = 0;
 
-    const wsUrl = `${WS_BASE}/ws/${sessionId}${options?.roomId ? `?room_id=${options.roomId}` : ''}`;
+    const params = new URLSearchParams();
+    if (options?.roomId) params.set('room_id', options.roomId);
+    const displayName = options?.roomId ? sessionStorage.getItem('exam_display_name') : null;
+    if (displayName) params.set('display_name', displayName);
+    const qs = params.toString();
+    const wsUrl = `${WS_BASE}/ws/${sessionId}${qs ? `?${qs}` : ''}`;
     const ws = new WSClient(wsUrl);
 
     ws.onStatus((status) => {

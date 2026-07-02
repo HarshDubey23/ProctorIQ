@@ -4,7 +4,7 @@ import { BentoCard } from '../ui/BentoCard';
 import { useUIStore } from '../../store/ui';
 import { useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, Eye, Shield, Users, Zap } from 'lucide-react';
+import { Activity, Eye, Shield, Users, Zap, Radio } from 'lucide-react';
 
 function LiveGaugePreview() {
   return (
@@ -131,6 +131,20 @@ export function LandingScreen() {
           whileTap={{ scale: 0.96 }}
         >
           Self-Test
+        </motion.button>
+        <motion.button
+          onClick={() => { window.location.href = '/host'; }}
+          className="rounded-xl px-8 py-3 font-display text-[15px] uppercase tracking-[0.12em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+          style={{
+            backgroundColor: 'rgba(107,81,120,0.12)',
+            color: 'var(--plum)',
+            border: '1px solid rgba(107,81,120,0.25)',
+          }}
+          whileHover={{ backgroundColor: 'rgba(107,81,120,0.2)' }}
+          whileTap={{ scale: 0.96 }}
+        >
+          <Radio size={14} className="mr-1.5" />
+          Host Exam
         </motion.button>
       </div>
     </div>
