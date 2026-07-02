@@ -107,5 +107,27 @@ test.describe('Host Exam Flow', () => {
       await hostPage.close();
       await joinPage.close();
     });
+
+    test('join flow lands participant on exam panel, not landing screen — regression', async ({ browser }) => {
+      const apiBase = API_BASE;
+
+      const createRes = await (await fetch(`${apiBase}/api/rooms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Regression E2E', max_participants: 2 }),
+      })).json();
+
+      const { room_id } = createRes;
+
+      const joinPage = await browser.newPage();
+      await joinPage.goto(`/join/${room_id}`);
+      await joinPage.getByLabel('Display name').fill('Regression Participant');
+      await joinPage.getByRole('button', { name: /join exam/i }).click();
+
+      await expect(joinPage.getByText('Timed Exam')).toBeVisible({ timeout: 15000 });
+      await expect(joinPage.getByRole('button', { name: /begin exam/i })).toBeVisible();
+
+      await joinPage.close();
+    });
   });
 });

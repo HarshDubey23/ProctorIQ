@@ -19,6 +19,7 @@ interface RoomInfo {
 export function JoinExam({ roomId }: JoinExamProps) {
   const [displayName, setDisplayName] = useState('');
   const [joining, setJoining] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
   const [error, setError] = useState('');
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
 
@@ -66,7 +67,10 @@ export function JoinExam({ roomId }: JoinExamProps) {
       sessionStorage.setItem('exam_duration_minutes', String(roomInfo.duration_minutes));
     }
 
-    window.location.href = '/';
+    setTransitioning(true);
+    setTimeout(() => {
+      window.location.href = '/';
+    }, 400);
   }, [displayName, roomId, checkRoom, roomInfo]);
 
   return (
@@ -135,7 +139,26 @@ export function JoinExam({ roomId }: JoinExamProps) {
           </div>
         )}
 
-        {!error && (
+        {transitioning && (
+          <motion.div
+            className="flex flex-col items-center justify-center gap-4 py-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="h-8 w-8 animate-spin rounded-full border-2" style={{ borderColor: 'var(--jade)', borderTopColor: 'transparent' }} />
+            <div className="flex flex-col items-center gap-1">
+              <span className="font-display text-lg uppercase tracking-[0.08em]" style={{ color: 'var(--ink)' }}>
+                Taking you to your exam...
+              </span>
+              <span className="font-sans text-xs" style={{ color: 'var(--ink-faint)' }}>
+                One moment please
+              </span>
+            </div>
+          </motion.div>
+        )}
+
+        {!error && !transitioning && (
           <form onSubmit={handleJoin} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="font-sans text-[11px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
