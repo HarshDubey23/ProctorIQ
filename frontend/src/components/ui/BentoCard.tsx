@@ -37,7 +37,7 @@ export function BentoCard({
   return (
     <div
       ref={cardRef}
-      className={`bento-card relative rounded-xl p-5 flex flex-col gap-2 overflow-hidden ${className}`}
+      className={`bento-card group relative rounded-xl p-5 flex flex-col gap-2 overflow-hidden ${className}`}
       style={{
         ...gridStyle,
         backgroundColor: 'var(--surface-1)',
@@ -55,7 +55,7 @@ export function BentoCard({
         />
       ) : (
         <div
-          className="pointer-events-none absolute inset-0 z-0 rounded-xl opacity-0 transition-opacity duration-200 hover:opacity-100"
+          className="pointer-events-none absolute inset-0 z-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
           style={{
             background: 'radial-gradient(400px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(14,107,92,0.12), transparent 70%)',
           }}
