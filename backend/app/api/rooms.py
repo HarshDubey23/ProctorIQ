@@ -5,13 +5,16 @@ import io
 import zipfile
 from datetime import datetime, timezone
 from typing import Any, cast
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from backend.app.ws.room_handler import broadcast_room_update
 from backend.core.room_store import InMemoryRoomStore
 from backend.cv.scoring import FlagEvent, compute_attention_score
+from backend.models.room import RoomMember
 from backend.models.session import Verdict
 from backend.report.pdf import generate_session_pdf
 from backend.report.signing import sign_session
@@ -23,6 +26,10 @@ class CreateRoomRequest(BaseModel):
     title: str = ""
     duration_minutes: int | None = None
     max_participants: int | None = None
+
+
+class JoinRoomRequest(BaseModel):
+    display_name: str
 
 
 def _get_room_store(request: Request) -> InMemoryRoomStore:
@@ -160,6 +167,53 @@ async def check_room_join(
         "status": room.status,
         "duration_minutes": room.duration_minutes,
         "member_count": len(room.active_sessions),
+    }
+
+
+@router.post("/{room_id}/join", status_code=201)
+async def join_room(
+    room_id: str,
+    body: JoinRoomRequest,
+    request: Request,
+    store: InMemoryRoomStore = Depends(_get_room_store),
+) -> dict[str, Any]:
+    from slowapi.util import get_remote_address
+    _check_join_rate_limit(request, get_remote_address(request))
+
+    room = await store.get_room(room_id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.status == "closed":
+        raise HTTPException(status_code=410, detail="This exam has already ended")
+
+    session_id = str(uuid4())
+    member = RoomMember(
+        session_id=session_id,
+        display_name=body.display_name.strip() or "Student",
+        score=0,
+        current_state="waiting",
+        elapsed_seconds=0,
+        event_count=0,
+        joined_at=datetime.now(timezone.utc),
+    )
+    try:
+        await store.upsert_member(room_id, member)
+    except ValueError as exc:
+        if "capacity" in str(exc):
+            raise HTTPException(status_code=429, detail="Room is full") from exc
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+
+    await broadcast_room_update(room_id, store)
+
+    updated = await store.get_room(room_id)
+    member_count = len(updated.active_sessions) if updated else 1
+    return {
+        "room_id": room.room_id,
+        "title": room.title,
+        "status": room.status,
+        "duration_minutes": room.duration_minutes,
+        "member_count": member_count,
+        "session_id": session_id,
     }
 
 

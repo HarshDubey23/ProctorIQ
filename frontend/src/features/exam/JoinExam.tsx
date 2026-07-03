@@ -14,6 +14,7 @@ interface RoomInfo {
   status: string;
   duration_minutes: number | null;
   member_count: number;
+  session_id?: string;
 }
 
 export function JoinExam({ roomId }: JoinExamProps) {
@@ -51,6 +52,34 @@ export function JoinExam({ roomId }: JoinExamProps) {
     checkRoom();
   }, [checkRoom]);
 
+  const joinRoom = useCallback(async (name: string): Promise<RoomInfo | null> => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/rooms/${roomId}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: name }),
+      });
+      if (resp.status === 410) {
+        setError('This exam has already ended.');
+        return null;
+      }
+      if (resp.status === 429) {
+        setError('This exam is full. No more participants can join.');
+        return null;
+      }
+      if (!resp.ok) {
+        setError('Exam not found. Check the link and try again.');
+        return null;
+      }
+      const info: RoomInfo = await resp.json();
+      setRoomInfo(info);
+      return info;
+    } catch {
+      setError('Could not connect to the exam server.');
+      return null;
+    }
+  }, [roomId]);
+
   const handleJoin = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     const name = displayName.trim();
@@ -59,23 +88,26 @@ export function JoinExam({ roomId }: JoinExamProps) {
     setError('');
     setJoining(true);
 
-    const available = await checkRoom();
-    if (!available) {
+    const joined = await joinRoom(name);
+    if (!joined) {
       setJoining(false);
       return;
     }
 
     sessionStorage.setItem('exam_room_id', roomId);
     sessionStorage.setItem('exam_display_name', name);
-    if (roomInfo?.duration_minutes) {
-      sessionStorage.setItem('exam_duration_minutes', String(roomInfo.duration_minutes));
+    if (joined.session_id) {
+      sessionStorage.setItem('exam_session_id', joined.session_id);
+    }
+    if (joined.duration_minutes) {
+      sessionStorage.setItem('exam_duration_minutes', String(joined.duration_minutes));
     }
 
     setTransitioning(true);
     setTimeout(() => {
       window.location.href = '/';
     }, 400);
-  }, [displayName, roomId, checkRoom, roomInfo]);
+  }, [displayName, roomId, joinRoom]);
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-6" style={{ backgroundColor: 'var(--surface-0)' }}>

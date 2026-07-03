@@ -126,7 +126,8 @@ export function useExamSession() {
           if (countdownRef.current) clearInterval(countdownRef.current);
           countdownRef.current = null;
           startTimeRef.current = Date.now();
-          const sid = crypto.randomUUID();
+          const sid = sessionStorage.getItem('exam_session_id') || crypto.randomUUID();
+          sessionStorage.removeItem('exam_session_id');
           setSessionId(sid);
           eventsRef.current = [];
           setSessionRegistered(false);
