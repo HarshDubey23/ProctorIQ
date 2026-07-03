@@ -29,6 +29,7 @@ const STATE_COLORS: Record<string, string> = {
   absent: 'var(--clay)',
   drowsy: 'var(--plum)',
   multi: 'var(--clay)',
+  waiting: 'var(--cobalt)',
 };
 
 function formatDuration(s: number): string {
@@ -50,6 +51,7 @@ interface HostDashboardProps {
 
 export function HostDashboard({ roomId }: HostDashboardProps) {
   const [members, setMembers] = useState<RoomMember[]>([]);
+  const [wsStatus, setWsStatus] = useState<'live' | 'reconnecting' | 'offline'>('offline');
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [closing, setClosing] = useState(false);
@@ -63,13 +65,29 @@ export function HostDashboard({ roomId }: HostDashboardProps) {
   const hostToken = useMemo(() => localStorage.getItem(`host_token_${roomId}`), [roomId]);
 
   useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/rooms/${roomId}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setMembers(data.members ?? []);
+        }
+      } catch (e) {
+        console.error('Polling error:', e);
+      }
+    };
+
+    fetchMembers();
+    const pollInterval = setInterval(fetchMembers, 5000);
+
     const wsUrl = API_BASE.replace(/^http/, 'ws');
     const ws = new WebSocket(`${wsUrl}/ws/room/${roomId}`);
     wsRef.current = ws;
+    setWsStatus('reconnecting');
 
-    ws.onopen = () => {};
-    ws.onclose = () => {};
-    ws.onerror = () => {};
+    ws.onopen = () => setWsStatus('live');
+    ws.onclose = () => setWsStatus('offline');
+    ws.onerror = () => setWsStatus(getConnectionStatus(ws));
 
     ws.onmessage = (e) => {
       try {
@@ -98,8 +116,10 @@ export function HostDashboard({ roomId }: HostDashboardProps) {
     };
 
     return () => {
+      clearInterval(pollInterval);
       ws.close();
       wsRef.current = null;
+      setWsStatus('offline');
     };
   }, [roomId]);
 
@@ -116,8 +136,6 @@ export function HostDashboard({ roomId }: HostDashboardProps) {
     }
     return [...list].sort((a, b) => a.score - b.score);
   }, [members, flaggedMembers, showFlaggedOnly, searchQuery]);
-
-  const wsStatus = getConnectionStatus(wsRef.current);
 
   const handleCloseExam = useCallback(async () => {
     if (!hostToken) return;

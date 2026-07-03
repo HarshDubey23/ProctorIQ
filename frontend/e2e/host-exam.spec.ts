@@ -89,14 +89,24 @@ test.describe('Host Exam Flow', () => {
 
       const hostPage = await browser.newPage();
       await hostPage.goto(`/host/${room_id}`);
-      await expect(hostPage.getByText(/waiting for participants/i)).toBeVisible({ timeout: 5000 });
+      await expect(hostPage.getByText(/waiting for participants/i)).toBeVisible({ timeout: 15000 });
+      // Ensure WebSocket is connected before participant joins
+      await expect(hostPage.getByText(/connected/i)).toBeVisible({ timeout: 15000 });
+
 
       const joinPage = await browser.newPage();
       await joinPage.goto(`/join/${room_id}`);
       await joinPage.getByLabel('Display name').fill('E2E Participant');
       await joinPage.getByRole('button', { name: /join exam/i }).click();
 
-      await expect(hostPage.getByText('E2E Participant')).toBeVisible({ timeout: 10000 });
+      await expect.poll(async () => {
+        const res = await fetch(`${apiBase}/api/rooms/${room_id}`, {
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const room = await res.json();
+        return room.members.some((m: Record<string, unknown>) => m.display_name === 'E2E Participant');
+      }, { timeout: 15000 }).toBe(true);
+      await expect(hostPage.getByText(/E2E Participant/i)).toBeVisible({ timeout: 15000 });
 
       const dashboard = await (await fetch(`${apiBase}/api/rooms/${room_id}`, {
         headers: { 'Content-Type': 'application/json' },

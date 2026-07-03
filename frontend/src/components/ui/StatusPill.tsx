@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useReducedMotion } from '../../lib/useReducedMotion';
 import { pillTransition } from '../../motion.config';
 
-export type StatusState = 'focused' | 'distracted' | 'absent' | 'drowsy' | 'multi' | 'demo';
+export type StatusState = 'focused' | 'distracted' | 'absent' | 'drowsy' | 'multi' | 'demo' | 'waiting';
 
 interface StatusPillProps {
   state: StatusState;
@@ -44,6 +44,12 @@ const PILL_CONFIG: Record<StatusState, { icon: string; label: string; color: str
     label: 'Demo Mode',
     color: 'var(--ochre)',
     bgColor: 'rgba(185,118,58,0.1)',
+  },
+  waiting: {
+    icon: '\u25CC',
+    label: 'Waiting',
+    color: 'var(--cobalt)',
+    bgColor: 'rgba(46,76,140,0.1)',
   },
 };
 

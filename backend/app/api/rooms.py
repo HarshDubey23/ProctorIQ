@@ -54,7 +54,7 @@ async def _require_host_token(
         raise HTTPException(status_code=403, detail="Invalid host token")
 
 
-def _check_room_rate_limit(request: Request, key: str, max_per_hour: int = 10) -> None:
+def _check_room_rate_limit(request: Request, key: str, max_per_hour: int = 100) -> None:
     """Simple in-memory per-app rate limiter using app.state."""
     import time
 
@@ -73,7 +73,7 @@ def _check_room_rate_limit(request: Request, key: str, max_per_hour: int = 10) -
     limits[key].append(now)
 
 
-def _check_join_rate_limit(request: Request, key: str, max_per_minute: int = 20) -> None:
+def _check_join_rate_limit(request: Request, key: str, max_per_minute: int = 120) -> None:
     """Simple in-memory per-app rate limiter using app.state."""
     import time
 

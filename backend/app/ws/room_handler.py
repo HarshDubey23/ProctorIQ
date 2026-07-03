@@ -27,19 +27,19 @@ async def broadcast_room_update(room_id: str, store: InMemoryRoomStore) -> None:
         }
         for m in room.active_sessions.values()
     ]
-    payload = json.dumps({
+    payload = {
         "type": "room_update",
         "room_id": room_id,
         "title": room.title,
         "status": room.status,
         "duration_minutes": room.duration_minutes,
         "members": members,
-    })
+    }
     sockets = _room_sockets.get(room_id, set())
     stale: set[WebSocket] = set()
     for ws in sockets:
         try:
-            await ws.send_text(payload)
+            await ws.send_json(payload)
         except Exception:
             stale.add(ws)
     sockets -= stale
@@ -59,7 +59,6 @@ async def room_ws(websocket: WebSocket, room_id: str) -> None:
         return
 
     await websocket.accept()
-
     _room_sockets.setdefault(room_id, set()).add(websocket)
 
     initial_room = await store.get_room(room_id)
