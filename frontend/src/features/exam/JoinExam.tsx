@@ -1,4 +1,4 @@
-import { useState, useCallback, type FormEvent } from 'react';
+import { useState, useCallback, useEffect, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { User, LogIn, Clock, Users, XCircle } from 'lucide-react';
 
@@ -46,6 +46,10 @@ export function JoinExam({ roomId }: JoinExamProps) {
       return false;
     }
   }, [roomId]);
+
+  useEffect(() => {
+    checkRoom();
+  }, [checkRoom]);
 
   const handleJoin = useCallback(async (e: FormEvent) => {
     e.preventDefault();
