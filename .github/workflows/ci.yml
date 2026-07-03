@@ -33,6 +33,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Use matching npm version
+        run: npm install -g npm@11.13.0
       - name: Install dependencies
         run: |
           cd frontend
@@ -56,6 +58,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Use matching npm version
+        run: npm install -g npm@11.13.0
       - name: Install frontend dependencies
         run: |
           cd frontend
@@ -79,7 +83,7 @@ jobs:
             fi
             sleep 1
           done
-          echo "Backend failed to become ready after 30s"
+          echo "Backend failed to become ready after 30s" >&2
           exit 1
       - name: Build frontend
         env:
