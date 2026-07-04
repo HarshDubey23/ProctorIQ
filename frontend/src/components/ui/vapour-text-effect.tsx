@@ -137,8 +137,8 @@ export default function VaporizeTextCycle({
     if (!ctx) return;
     const safeCtx: CanvasRenderingContext2D = ctx;
 
-    let w = canvas.offsetWidth * window.devicePixelRatio;
-    let h = canvas.offsetHeight * window.devicePixelRatio;
+    const w = canvas.offsetWidth * window.devicePixelRatio;
+    const h = canvas.offsetHeight * window.devicePixelRatio;
     canvas.width = w;
     canvas.height = h;
     safeCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
