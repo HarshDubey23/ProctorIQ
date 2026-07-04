@@ -1,4 +1,4 @@
-# ProctorIQ v2
+# ProctorIQ
 
 **Browser-first, privacy-preserving exam integrity platform.**  
 All ML inference runs client-side via MediaPipe WASM + ONNX Runtime Web.  
