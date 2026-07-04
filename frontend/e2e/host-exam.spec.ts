@@ -2,11 +2,34 @@ import { test, expect } from '@playwright/test';
 
 const API_BASE = 'http://localhost:8000';
 
+async function createPaper(base: string) {
+  const res = await fetch(`${base}/api/papers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: 'E2E Paper',
+      subject: 'Testing',
+      duration_minutes: 30,
+      questions: [
+        { id: 'q1', type: 'mcq-single', title: 'Q1', body: 'Test?', marks: 1, options: ['A', 'B'], correct_answer: '0' },
+      ],
+    }),
+  });
+  const body = await res.json();
+  return body.id as string;
+}
+
 test.describe('Host Exam Flow', () => {
+  let paperId: string;
+
+  test.beforeAll(async () => {
+    paperId = await createPaper(API_BASE);
+  });
+
   test.describe('Room creation via API', () => {
     test('POST /api/rooms creates a room and returns join_url', async ({ request }) => {
       const res = await request.post(`${API_BASE}/api/rooms`, {
-        data: { title: 'E2E Test Exam', duration_minutes: 30, max_participants: 5 },
+        data: { title: 'E2E Test Exam', paper_id: paperId, duration_minutes: 30, max_participants: 5 },
       });
       expect(res.status()).toBe(201);
       const body = await res.json();
@@ -18,7 +41,7 @@ test.describe('Host Exam Flow', () => {
 
     test('GET /api/rooms/{id} returns room details', async ({ request }) => {
       const create = await request.post(`${API_BASE}/api/rooms`, {
-        data: { title: 'Room Detail Test', duration_minutes: 15 },
+        data: { title: 'Room Detail Test', paper_id: paperId, duration_minutes: 15 },
       });
       const { room_id } = await create.json();
 
@@ -46,6 +69,7 @@ test.describe('Host Exam Flow', () => {
 
     test('create room form submits and navigates to share screen', async ({ page }) => {
       await page.goto('/host');
+      await page.getByLabel('Paper ID').fill(paperId);
       await page.getByLabel('Exam title').fill('E2E Host Test');
       await page.getByLabel('Duration in minutes').fill('30');
       await page.getByLabel('Max participants').fill('3');
@@ -60,7 +84,7 @@ test.describe('Host Exam Flow', () => {
       const create = await (await fetch(`${API_BASE}/api/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Join Test', max_participants: 2 }),
+        body: JSON.stringify({ title: 'Join Test', paper_id: paperId, max_participants: 2, duration_minutes: 15 }),
       })).json();
 
       await page.goto(`/join/${create.room_id}`);
@@ -82,7 +106,7 @@ test.describe('Host Exam Flow', () => {
       const createRes = await (await fetch(`${apiBase}/api/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Multi E2E', max_participants: 2 }),
+        body: JSON.stringify({ title: 'Multi E2E', paper_id: paperId, max_participants: 2, duration_minutes: 15 }),
       })).json();
 
       const { room_id } = createRes;
@@ -90,9 +114,7 @@ test.describe('Host Exam Flow', () => {
       const hostPage = await browser.newPage();
       await hostPage.goto(`/host/${room_id}`);
       await expect(hostPage.getByText(/waiting for participants/i)).toBeVisible({ timeout: 15000 });
-      // Ensure WebSocket is connected before participant joins
       await expect(hostPage.getByText(/connected/i)).toBeVisible({ timeout: 15000 });
-
 
       const joinPage = await browser.newPage();
       await joinPage.goto(`/join/${room_id}`);
@@ -124,7 +146,7 @@ test.describe('Host Exam Flow', () => {
       const createRes = await (await fetch(`${apiBase}/api/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Regression E2E', max_participants: 2 }),
+        body: JSON.stringify({ title: 'Regression E2E', paper_id: paperId, max_participants: 2, duration_minutes: 15 }),
       })).json();
 
       const { room_id } = createRes;
