@@ -4,20 +4,57 @@ import csv
 import io
 import zipfile
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
+from backend.core.paper_store import InMemoryPaperStore
 from backend.core.room_store import InMemoryRoomStore
 from backend.core.session_store import InMemorySessionStore
+from backend.models.paper import Paper, Question
 from backend.models.room import Room, RoomMember
 from backend.models.session import Session
+
+
+def _create_paper_directly(store: InMemoryPaperStore, paper_id: str = "test-paper-1") -> Paper:
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        paper = loop.run_until_complete(store.create(Paper(
+            id=paper_id,
+            host_token="test-host-token",
+            title="Test Paper",
+            duration_minutes=60,
+            questions=[
+                Question(id="q1", type="mcq-single", title="Q1", body="Test?", options=["A", "B"], correct_answer="0"),
+                Question(id="q2", type="mcq-single", title="Q2", body="Test2?", options=["A", "B"], correct_answer="1"),
+            ],
+        )))
+        return paper
+    finally:
+        loop.close()
+
+
+def _create_paper_via_api(client: TestClient) -> str:
+    resp = client.post("/api/papers", json={
+        "title": "Test Paper",
+        "duration_minutes": 60,
+        "questions": [
+            {"id": "q1", "type": "mcq-single", "title": "Q1", "body": "Test?", "options": ["A", "B"], "correct_answer": "0"},
+            {"id": "q2", "type": "mcq-single", "title": "Q2", "body": "Test2?", "options": ["A", "B"], "correct_answer": "1"},
+        ],
+    })
+    assert resp.status_code == 201
+    return cast(str, resp.json()["id"])
 
 
 def _create_room_directly(
     store: InMemoryRoomStore,
     title: str = "",
+    paper_id: str = "test-paper-1",
     duration_minutes: int | None = None,
     max_participants: int | None = None,
 ) -> Room:
@@ -27,6 +64,7 @@ def _create_room_directly(
     try:
         room = loop.run_until_complete(store.create_room(
             title=title,
+            paper_id=paper_id,
             duration_minutes=duration_minutes,
             max_participants=max_participants,
         ))
@@ -39,7 +77,8 @@ class TestRoomCreationWithNewFields:
     def test_create_room_with_title(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Midterm Exam"})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Midterm Exam", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             room_id = data["room_id"]
@@ -49,7 +88,8 @@ class TestRoomCreationWithNewFields:
     def test_create_room_with_duration(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Timed", "duration_minutes": 60})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Timed", "paper_id": paper_id, "duration_minutes": 60})
             assert resp.status_code == 201
             data = resp.json()
             get_resp = client.get(f"/api/rooms/{data['room_id']}")
@@ -58,21 +98,32 @@ class TestRoomCreationWithNewFields:
     def test_create_room_with_max_participants(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Limited", "max_participants": 2})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Limited", "paper_id": paper_id, "max_participants": 2})
             assert resp.status_code == 201
             data = resp.json()
             get_resp = client.get(f"/api/rooms/{data['room_id']}")
             assert get_resp.json()["max_participants"] == 2
 
+    def test_create_room_rejects_missing_paper(self) -> None:
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.post("/api/rooms", json={"title": "No Paper", "paper_id": "nonexistent"})
+            assert resp.status_code == 404
+            assert "paper" in resp.text.lower()
+
     def test_default_room_status_is_open(self) -> None:
         store = InMemoryRoomStore()
+        paper_store = InMemoryPaperStore()
+        _create_paper_directly(paper_store)
         room = _create_room_directly(store)
         assert room.status == "open"
 
     def test_host_token_not_exposed_via_get(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Token Test"})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Token Test", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             get_resp = client.get(f"/api/rooms/{data['room_id']}")
@@ -81,7 +132,8 @@ class TestRoomCreationWithNewFields:
     def test_create_returns_host_token_and_join_url(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "New Room"})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "New Room", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             assert "host_token" in data
@@ -92,6 +144,8 @@ class TestRoomCreationWithNewFields:
 class TestMaxParticipantsEnforcement:
     def test_join_rejected_when_room_full(self) -> None:
         store = InMemoryRoomStore()
+        paper_store = InMemoryPaperStore()
+        _create_paper_directly(paper_store)
         room = _create_room_directly(store, title="Full Room", max_participants=1)
 
         import asyncio
@@ -135,7 +189,8 @@ class TestMaxParticipantsEnforcement:
     def test_join_check_endpoint_rejects_full_room(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"max_participants": 1})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"paper_id": paper_id, "max_participants": 1})
             assert resp.status_code == 201
             room_id = resp.json()["room_id"]
             store: InMemoryRoomStore = app.state.room_store
@@ -162,6 +217,8 @@ class TestMaxParticipantsEnforcement:
 
     def test_join_closed_room_rejected(self) -> None:
         store = InMemoryRoomStore()
+        paper_store = InMemoryPaperStore()
+        _create_paper_directly(paper_store)
         room = _create_room_directly(store, title="Closed Room")
         import asyncio
         loop = asyncio.new_event_loop()
@@ -195,7 +252,8 @@ class TestHostTokenRequired:
     def test_close_room_without_token_returns_422(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Auth Test"})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Auth Test", "paper_id": paper_id})
             assert resp.status_code == 201
             room_id = resp.json()["room_id"]
             close_resp = client.post(f"/api/rooms/{room_id}/close")
@@ -204,7 +262,8 @@ class TestHostTokenRequired:
     def test_close_room_with_wrong_token_returns_403(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Auth Test 2"})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Auth Test 2", "paper_id": paper_id})
             assert resp.status_code == 201
             room_id = resp.json()["room_id"]
             close_resp = client.post(
@@ -216,7 +275,8 @@ class TestHostTokenRequired:
     def test_close_room_with_correct_token_succeeds(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Auth Test 3"})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Auth Test 3", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             room_id = data["room_id"]
@@ -233,7 +293,8 @@ class TestReportsHostToken:
     def test_reports_without_token_returns_422(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Reports Auth"})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Reports Auth", "paper_id": paper_id})
             assert resp.status_code == 201
             room_id = resp.json()["room_id"]
             reports_resp = client.get(f"/api/rooms/{room_id}/reports")
@@ -242,7 +303,8 @@ class TestReportsHostToken:
     def test_reports_with_wrong_token_returns_403(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Reports Auth 2"})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Reports Auth 2", "paper_id": paper_id})
             assert resp.status_code == 201
             room_id = resp.json()["room_id"]
             reports_resp = client.get(
@@ -254,7 +316,8 @@ class TestReportsHostToken:
     def test_reports_with_correct_token_returns_summary(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Reports Good"})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Reports Good", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             room_id = data["room_id"]
@@ -274,7 +337,15 @@ class TestDurationAutoClose:
     async def test_duration_auto_close(self) -> None:
         from backend.app.main import _close_expired_rooms
         store = InMemoryRoomStore()
-        room = await store.create_room(title="Expiring", duration_minutes=0)
+        paper_store = InMemoryPaperStore()
+        await paper_store.create(Paper(
+            id="test-paper-dur-1",
+            host_token="test",
+            title="Test",
+            duration_minutes=60,
+            questions=[],
+        ))
+        room = await store.create_room(title="Expiring", paper_id="test-paper-dur-1", duration_minutes=0)
         assert room.status == "open"
         await _close_expired_rooms(store)
         updated = await store.get_room(room.room_id)
@@ -285,7 +356,15 @@ class TestDurationAutoClose:
     async def test_duration_not_exceeded(self) -> None:
         from backend.app.main import _close_expired_rooms
         store = InMemoryRoomStore()
-        room = await store.create_room(title="Active", duration_minutes=60)
+        paper_store = InMemoryPaperStore()
+        await paper_store.create(Paper(
+            id="test-paper-dur-2",
+            host_token="test",
+            title="Test",
+            duration_minutes=60,
+            questions=[],
+        ))
+        room = await store.create_room(title="Active", paper_id="test-paper-dur-2", duration_minutes=60)
         await _close_expired_rooms(store)
         updated = await store.get_room(room.room_id)
         assert updated is not None
@@ -296,7 +375,8 @@ class TestCombinedReportEndpoint:
     def test_zip_contains_pdfs_and_csv(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "Zip Test"})
+            paper_id = _create_paper_via_api(client)
+            resp = client.post("/api/rooms", json={"title": "Zip Test", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             room_id = data["room_id"]

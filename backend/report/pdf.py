@@ -3,10 +3,10 @@ from __future__ import annotations
 import io
 from datetime import datetime, timezone
 from typing import Any
-from reportlab.lib.pagesizes import A4  # type: ignore[import-untyped]
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # type: ignore[import-untyped]
-from reportlab.lib.units import mm  # type: ignore[import-untyped]
-from reportlab.platypus import (  # type: ignore[import-untyped]
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import (
     SimpleDocTemplate,
     Paragraph,
     Spacer,
@@ -15,7 +15,7 @@ from reportlab.platypus import (  # type: ignore[import-untyped]
     PageBreak,
     Image,
 )
-from reportlab.lib import colors  # type: ignore[import-untyped]
+from reportlab.lib import colors
 
 from backend.models.session import Session, SessionSummary, Verdict
 from backend.report.signing import sign_session

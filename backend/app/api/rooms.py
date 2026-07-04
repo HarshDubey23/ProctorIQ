@@ -12,8 +12,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from backend.app.ws.room_handler import broadcast_room_update
+from backend.core.paper_store import InMemoryPaperStore
 from backend.core.room_store import InMemoryRoomStore
 from backend.cv.scoring import FlagEvent, compute_attention_score
+from backend.models.paper import to_public
 from backend.models.room import RoomMember
 from backend.models.session import Verdict
 from backend.report.pdf import generate_session_pdf
@@ -24,8 +26,13 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 class CreateRoomRequest(BaseModel):
     title: str = ""
+    paper_id: str
     duration_minutes: int | None = None
     max_participants: int | None = None
+
+
+def _get_paper_store(request: Request) -> InMemoryPaperStore:
+    return cast(InMemoryPaperStore, request.app.state.paper_store)
 
 
 class JoinRoomRequest(BaseModel):
@@ -97,12 +104,17 @@ async def create_room(
     body: CreateRoomRequest,
     request: Request,
     store: InMemoryRoomStore = Depends(_get_room_store),
+    paper_store: InMemoryPaperStore = Depends(_get_paper_store),
 ) -> dict[str, str]:
     from slowapi.util import get_remote_address
+    paper = await paper_store.get(body.paper_id)
+    if paper is None:
+        raise HTTPException(404, "Paper not found — create or select a paper first")
     _check_room_rate_limit(request, get_remote_address(request))
     room = await store.create_room(
-        title=body.title,
-        duration_minutes=body.duration_minutes,
+        title=body.title or paper.title,
+        paper_id=body.paper_id,
+        duration_minutes=body.duration_minutes or paper.duration_minutes,
         max_participants=body.max_participants,
     )
     return {
@@ -141,6 +153,24 @@ async def get_room(
             for m in room.active_sessions.values()
         ],
     }
+
+
+@router.get("/{room_id}/paper")
+async def get_room_paper(
+    room_id: str,
+    store: InMemoryRoomStore = Depends(_get_room_store),
+    paper_store: InMemoryPaperStore = Depends(_get_paper_store),
+) -> dict[str, Any]:
+    room = await store.get_room(room_id)
+    if room is None:
+        raise HTTPException(404, "Room not found")
+    if not room.paper_id:
+        raise HTTPException(404, "No paper associated with this room")
+    paper = await paper_store.get(room.paper_id)
+    if paper is None:
+        raise HTTPException(404, "Paper not found")
+    public = to_public(paper)
+    return public.model_dump(mode="json")
 
 
 @router.get("/{room_id}/join-check")

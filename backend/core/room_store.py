@@ -45,6 +45,7 @@ class InMemoryRoomStore:
     async def create_room(
         self,
         title: str = "",
+        paper_id: str = "",
         duration_minutes: int | None = None,
         max_participants: int | None = None,
     ) -> Room:
@@ -58,6 +59,7 @@ class InMemoryRoomStore:
                 room_id=room_id,
                 created_at=datetime.now(timezone.utc),
                 title=title,
+                paper_id=paper_id,
                 duration_minutes=duration_minutes,
                 max_participants=max_participants,
                 host_token=host_token,
@@ -103,6 +105,13 @@ class InMemoryRoomStore:
                 room.status = "closed"
                 self._last_activity[room_id] = datetime.now(timezone.utc)
             return room.model_copy(deep=True) if room else None
+
+    async def get_room_for_session(self, session_id: str) -> Room | None:
+        async with self._lock:
+            for room in self._rooms.values():
+                if session_id in room.active_sessions:
+                    return room.model_copy(deep=True)
+            return None
 
     async def list_room_participants(self, room_id: str) -> list[RoomMember]:
         async with self._lock:

@@ -11,6 +11,7 @@ import { JoinExam } from './features/exam/JoinExam';
 import { Styleguide } from './components/styleguide/Styleguide';
 import { ModelTrainingPage } from './features/model/ModelTrainingPage';
 import { PaperBuilderPage } from './features/builder/PaperBuilderPage';
+import CollectPage from './features/collect/CollectPage';
 
 function getCohortIdFromPath(): string | null {
   const m = window.location.pathname.match(/^\/cohort\/([A-Z0-9]{6})$/i);
@@ -79,6 +80,10 @@ function Root() {
 
   if (window.location.pathname.match(/^\/builder$/i)) {
     return <PaperBuilderPage />;
+  }
+
+  if (window.location.pathname.match(/^\/collect$/i)) {
+    return <CollectPage />;
   }
 
   if (cohortId) {

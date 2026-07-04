@@ -18,11 +18,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import f1_score, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.model_selection import StratifiedKFold
-from torch.utils.data import DataLoader, TensorDataset, Subset
-from tqdm import tqdm
+from torch.utils.data import DataLoader, TensorDataset
 
 
-CLASSES = sorted(["focused", "distracted", "absent", "drowsy"])
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -106,6 +104,14 @@ def main() -> None:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    labels_path = data_dir / "labels.json"
+    if labels_path.exists():
+        label_to_int = json.loads(labels_path.read_text())
+        CLASSES = sorted(label_to_int.keys(), key=lambda k: label_to_int[k])
+    else:
+        CLASSES = ["absent", "distracted", "drowsy", "focused"]
+    print(f"Loaded classes from labels.json: {CLASSES}")
+
     X_train = np.load(str(data_dir / "X_train.npy"))
     y_train = np.load(str(data_dir / "y_train.npy"))
     X_val = np.load(str(data_dir / "X_val.npy"))
@@ -152,7 +158,6 @@ def main() -> None:
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
         best_f1 = 0.0
-        best_state: dict[str, torch.Tensor] | None = None
         patience = 8
         no_improve = 0
 
@@ -163,7 +168,6 @@ def main() -> None:
             if val_f1 > best_f1:
                 best_f1 = val_f1
                 no_improve = 0
-                best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
             else:
                 no_improve += 1
 
@@ -184,18 +188,28 @@ def main() -> None:
     with open(output_dir / "cv_results.json", "w") as f:
         json.dump(cv_results, f, indent=2)
 
-    # --- Final test-set evaluation ---
+    # --- Final model training (NO test-set peeking) ---
     print(f"\n{'=' * 50}")
-    print("Training final model on full training + val set...")
+    print("Training final model on full train+val set (early stopping on a 20% holdout of train+val)...")
 
-    X_full_t = torch.tensor(X_full, dtype=torch.float32).unsqueeze(1)
-    y_full_t = torch.tensor(y_full, dtype=torch.long)
-    X_test_t = torch.tensor(X_test, dtype=torch.float32).unsqueeze(1)
-    y_test_t = torch.tensor(y_test, dtype=torch.long)
+    from sklearn.model_selection import train_test_split as tts
+    X_train_sub, X_val_sub, y_train_sub, y_val_sub = tts(
+        X_full, y_full, test_size=0.2, stratify=y_full, random_state=args.seed,
+    )
+
+    X_ts_t = torch.tensor(X_train_sub, dtype=torch.float32).unsqueeze(1)
+    y_ts_t = torch.tensor(y_train_sub, dtype=torch.long)
+    X_vs_t = torch.tensor(X_val_sub, dtype=torch.float32).unsqueeze(1)
+    y_vs_t = torch.tensor(y_val_sub, dtype=torch.long)
 
     final_train_loader = DataLoader(
-        TensorDataset(X_full_t, y_full_t), batch_size=args.batch_size, shuffle=True
+        TensorDataset(X_ts_t, y_ts_t), batch_size=args.batch_size, shuffle=True
     )
+    final_val_loader = DataLoader(
+        TensorDataset(X_vs_t, y_vs_t), batch_size=args.batch_size
+    )
+    X_test_t = torch.tensor(X_test, dtype=torch.float32).unsqueeze(1)
+    y_test_t = torch.tensor(y_test, dtype=torch.long)
     final_test_loader = DataLoader(
         TensorDataset(X_test_t, y_test_t), batch_size=args.batch_size
     )
@@ -210,46 +224,48 @@ def main() -> None:
     )
     optimizer = torch.optim.Adam(final_model.parameters(), lr=args.lr)
 
-    best_test_f1 = 0.0
-    best_test_state: dict[str, torch.Tensor] | None = None
+    best_val_f1 = 0.0
+    best_val_state: dict[str, torch.Tensor] | None = None
     patience = 12
     no_improve = 0
 
     for epoch in range(1, args.epochs + 1):
         train_epoch(final_model, final_train_loader, criterion, optimizer)
-        test_f1, test_loss, _, _ = evaluate(final_model, final_test_loader, criterion)
+        val_f1, val_loss, _, _ = evaluate(final_model, final_val_loader, criterion)
 
-        if test_f1 > best_test_f1:
-            best_test_f1 = test_f1
+        if val_f1 > best_val_f1:
+            best_val_f1 = val_f1
             no_improve = 0
-            best_test_state = {
+            best_val_state = {
                 k: v.cpu().clone() for k, v in final_model.state_dict().items()
             }
         else:
             no_improve += 1
 
-        print(f"Epoch {epoch:3d}/{args.epochs}  Test loss: {test_loss:.4f}  "
-              f"Test macro-F1: {test_f1:.4f}  {'*' if test_f1 >= best_test_f1 else ' '}")
+        print(f"Epoch {epoch:3d}/{args.epochs}  Val loss: {val_loss:.4f}  "
+              f"Val macro-F1: {val_f1:.4f}  {'*' if val_f1 >= best_val_f1 else ' '}")
 
         if no_improve >= patience:
             break
 
-    print(f"\nBest test macro-F1: {best_test_f1:.4f}")
+    print(f"\nBest val macro-F1: {best_val_f1:.4f}")
 
-    # Confusion matrix on test set
-    if best_test_state is not None:
-        final_model.load_state_dict(best_test_state)
-    _, _, test_preds, test_targets = evaluate(
+    # --- Test set: touched exactly once, AFTER model selection is frozen ---
+    if best_val_state is not None:
+        final_model.load_state_dict(best_val_state)
+    test_f1, test_loss, test_preds, test_targets = evaluate(
         final_model, final_test_loader, criterion
     )
+    print(f"\nFinal test macro-F1 (blind, single eval): {test_f1:.4f}")
 
+    # Confusion matrix on test set
     cm = confusion_matrix(test_targets, test_preds)
     disp = ConfusionMatrixDisplay(
         confusion_matrix=cm, display_labels=CLASSES
     )
     fig, ax = plt.subplots(figsize=(8, 6))
     disp.plot(ax=ax, cmap="Blues", values_format="d")
-    ax.set_title(f"Confusion Matrix — Test set macro-F1: {best_test_f1:.4f}")
+    ax.set_title(f"Confusion Matrix — Test set macro-F1: {test_f1:.4f}")
     plt.tight_layout()
     cm_path = output_dir / "confusion_matrix.png"
     fig.savefig(str(cm_path), dpi=150)

@@ -4,7 +4,6 @@ import {
   Copy, Check, ArrowRight, Download, FileText, Shuffle, Lock, Globe,
   Users, Clock, Calendar, GripVertical, Sparkles
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import type { Question, QuestionType, PaperSection } from "./types";
@@ -12,6 +11,8 @@ import { QUESTION_TYPE_LABELS } from "./types";
 import { MOCK_QUESTIONS } from "./mockQuestions";
 import { AIPaperDraft } from "./AIPaperDraft";
 import { TemplateGallery } from "./TemplateGallery";
+
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 type BuilderStep = "build" | "publish";
 
@@ -55,6 +56,9 @@ export function PaperBuilderPage() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [newQuestion, setNewQuestion] = useState<Question>({ ...EMPTY_QUESTION, id: generateId() });
   const [questionBank, setQuestionBank] = useState<Question[]>(MOCK_QUESTIONS);
+  const [paperId, setPaperId] = useState<string | null>(null);
+  const [hostToken, setHostToken] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
   const filteredQuestions = useMemo(() => {
@@ -181,20 +185,47 @@ export function PaperBuilderPage() {
     setShowNewQuestion(false);
   }, [newQuestion, handleAddQuestion]);
 
-  const handlePublish = useCallback(() => {
-    const code = generateExamCode();
-    sessionStorage.setItem("exam_code", code);
-    sessionStorage.setItem("exam_paper", JSON.stringify({
-      title, subject, instructions, durationMin: parseInt(duration),
-      shuffleQuestions, shuffleOptions, accessMode,
-      sectionIds: sections.map((s) => s.questionIds).flat(),
-    }));
-    setStep("publish");
-  }, [title, subject, instructions, duration, shuffleQuestions, shuffleOptions, accessMode, sections]);
+  const handlePublish = useCallback(async () => {
+    const payload = {
+      title,
+      subject,
+      instructions,
+      duration_minutes: parseInt(duration) || 60,
+      shuffle_questions: shuffleQuestions,
+      shuffle_options: shuffleOptions,
+      questions: questionBank.map(q => ({
+        id: q.id, type: q.type, title: q.title, body: q.body,
+        marks: q.marks, negative_marks: q.negativeMarks,
+        topic: q.topic, difficulty: q.difficulty,
+        options: q.options, correct_answer: q.correctAnswer,
+      })),
+      sections: sections.map(s => ({ id: s.id, title: s.title, question_ids: s.questionIds })),
+    };
+    try {
+      const resp = await fetch(`${API_BASE}/api/papers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) throw new Error("Failed to publish paper");
+      const paper = await resp.json();
+      const hostToken = paper.host_token;
+      localStorage.setItem(`paper_token_${paper.id}`, hostToken);
+      const code = generateExamCode();
+      sessionStorage.setItem("exam_code", code);
+      sessionStorage.setItem("paper_id", paper.id);
+      setPaperId(paper.id);
+      setHostToken(hostToken);
+      setStep("publish");
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Failed to publish");
+    }
+  }, [title, subject, instructions, duration, shuffleQuestions, shuffleOptions, sections, questionBank]);
 
   const examCode = useMemo(() => sessionStorage.getItem("exam_code") ?? generateExamCode(), [step]);
-  const joinUrl = useMemo(() => `/join/${examCode}`, [examCode]);
-  const fullUrl = useMemo(() => `${window.location.origin}${joinUrl}`, [joinUrl, examCode]);
+  const seshPaperId = useMemo(() => sessionStorage.getItem("paper_id"), [step]);
+  const displayPaperId = paperId || seshPaperId || "";
+  const hostPageUrl = useMemo(() => displayPaperId ? `/host` : `/builder`, [displayPaperId]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -645,10 +676,15 @@ export function PaperBuilderPage() {
             </div>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-6">
-            {/* QR */}
-            <div ref={qrRef} className="flex flex-col items-center gap-3 border-[3px] border-ink bg-paper-2 p-5">
-              <QRCodeSVG value={fullUrl} size={200} level="M" fgColor="#1A1A17" bgColor="transparent" />
-              <span className="font-label text-label text-graphite">Scan to join</span>
+            {/* Paper info */}
+            <div className="w-full border-[3px] border-ink bg-paper-2 p-4 text-center">
+              <span className="chip !text-[10px]">Paper ID</span>
+              <div className="font-mono text-sm text-ink mt-1 select-all">{displayPaperId}</div>
+              {hostToken && (
+                <div className="mt-2 font-mono text-[10px] text-graphite break-all select-all">
+                  Host token: {hostToken.slice(0, 16)}...
+                </div>
+              )}
             </div>
 
             <div className="flex gap-2">
@@ -684,31 +720,24 @@ export function PaperBuilderPage() {
               {instructions && <p className="font-body text-xs text-graphite border-t-[2px] border-ink pt-2 mt-1">{instructions}</p>}
             </div>
 
-            {/* Link */}
-            <div className="flex w-full flex-col gap-2">
-              <span className="font-label text-label text-graphite">Exam Link</span>
-              <div className="flex items-center gap-2 border-[3px] border-ink bg-paper-2 px-3 py-2 font-mono text-xs text-ink select-all">
-                <span className="flex-1 truncate">{fullUrl}</span>
-                <button onClick={handleCopy} className="shrink-0 p-1 text-graphite hover:text-ink" aria-label={copied ? "Copied" : "Copy link"}>
-                  {copied ? <Check size={14} className="text-ledger" /> : <Copy size={14} />}
-                </button>
-              </div>
-              {copied && <span className="font-body text-xs text-ledger">Link copied!</span>}
-            </div>
-
-            {/* Actions */}
+            {/* Action */}
             <div className="flex w-full gap-3">
-              <Button variant="primary" className="flex-1" onClick={() => { window.location.href = `/host/${examCode}`; }}>
-                <ArrowRight size={16} /> Go to Dashboard
+              <Button variant="primary" className="flex-1" onClick={() => { window.location.href = hostPageUrl; }}>
+                <ArrowRight size={16} /> Go to Host Dashboard
               </Button>
-              <Button variant="default" onClick={() => window.open(fullUrl, "_blank")}>
-                Preview
+              <Button variant="default" onClick={() => {
+                const pid = displayPaperId;
+                if (pid) navigator.clipboard.writeText(pid).catch(() => {});
+              }}>
+                <Copy size={16} /> Copy Paper ID
               </Button>
             </div>
 
-            <p className="font-body text-xs text-graphite text-center">
-              Exam code: <span className="font-mono text-ink">{examCode}</span>
-            </p>
+            {publishError && (
+              <div className="w-full border-[3px] border-stamp bg-paper-2 px-3 py-2 font-body text-xs text-stamp" role="alert">
+                {publishError}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

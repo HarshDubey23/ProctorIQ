@@ -22,7 +22,6 @@ import onnx
 import onnxruntime as ort
 
 
-CLASSES = sorted(["focused", "distracted", "absent", "drowsy"])
 DEVICE = torch.device("cpu")
 
 
@@ -75,6 +74,14 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     frontend_dir.mkdir(parents=True, exist_ok=True)
 
+    labels_path = data_dir / "labels.json"
+    if labels_path.exists():
+        label_to_int = json.loads(labels_path.read_text())
+        CLASSES = sorted(label_to_int.keys(), key=lambda k: label_to_int[k])
+    else:
+        CLASSES = ["absent", "distracted", "drowsy", "focused"]
+    print(f"Loaded classes from labels.json: {CLASSES}")
+
     # Load PCA metadata for input dimension
     with open(data_dir / "n_components.json") as f:
         n_components_meta = json.load(f)
@@ -122,7 +129,7 @@ def main() -> None:
     if model_size_kb >= 800:
         print(f"WARNING: Model size ({model_size_kb:.1f} KB) exceeds 800 KB target")
     else:
-        print(f"Model size OK (< 800 KB target)")
+        print("Model size OK (< 800 KB target)")
 
     # Validate inference with ONNX Runtime
     ort_session = ort.InferenceSession(str(onnx_path))

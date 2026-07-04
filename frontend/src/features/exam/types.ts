@@ -9,11 +9,21 @@ export type ExamState =
 export type AttentionLabel = 'focused' | 'distracted' | 'absent' | 'drowsy' | 'multi';
 
 export interface ExamQuestion {
-  id: number;
-  topic: 'CS' | 'Aptitude' | 'Logic';
-  question: string;
-  options: [string, string, string, string];
-  correctIndex: number;
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  marks: number;
+  options: string[] | null;
+}
+
+export interface PublicQuestion {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  marks: number;
+  options: string[] | null;
 }
 
 export interface ExamAnswer {

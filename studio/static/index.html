@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>ProctorIQ Training Studio</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; color: #222; }
+  button { padding: 8px 16px; margin-right: 8px; cursor: pointer; }
+  pre { background: #111; color: #b8ffb8; padding: 12px; height: 240px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { border-bottom: 1px solid #ddd; padding: 6px; text-align: left; }
+</style>
+</head>
+<body>
+  <h1>Training Studio</h1>
+
+  <h2>Dataset</h2>
+  <div id="dataset-stats">Loading&hellip;</div>
+
+  <h2>Train</h2>
+  <label>New batch folder: <input id="batch-input" placeholder="alice_2026-07-10" /></label><br/><br/>
+  <button onclick="startTrain('continue')">Continue training</button>
+  <button onclick="startTrain('scratch')">Train from scratch</button>
+  <pre id="log"></pre>
+
+  <h2>Runs</h2>
+  <table id="runs-table"><thead><tr><th>Version</th><th>Mode</th><th>CV F1</th><th>Test F1</th></tr></thead><tbody></tbody></table>
+  <canvas id="runs-chart" height="120"></canvas>
+
+<script>
+let pollTimer = null;
+let chart = null;
+
+async function loadStats() {
+  const r = await fetch("/api/dataset/stats").then(r => r.json());
+  document.getElementById("dataset-stats").innerText = `${r.total_clips} clips — ${JSON.stringify(r.by_label)}`;
+}
+
+async function loadRuns() {
+  const runs = await fetch("/api/runs").then(r => r.json());
+  document.querySelector("#runs-table tbody").innerHTML = runs.map(r =>
+    `<tr><td>${r.version}</td><td>${r.mode || '-'}</td><td>${r.cv_f1?.toFixed(3) ?? '-'}</td><td>${r.test_f1?.toFixed(3) ?? '-'}</td></tr>`
+  ).join("");
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById("runs-chart"), {
+    type: "line",
+    data: { labels: runs.map(r => r.version), datasets: [{ label: "CV F1", data: runs.map(r => r.cv_f1) }] },
+  });
+}
+
+async function startTrain(mode) {
+  const body = { mode, epochs: 8, lr: 0.0001, new_batch: document.getElementById("batch-input").value || null };
+  const { run_id } = await fetch("/api/train/start", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  }).then(r => r.json());
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    const { log, running } = await fetch(`/api/train/${run_id}/log`).then(r => r.json());
+    const el = document.getElementById("log");
+    el.innerText = log; el.scrollTop = el.scrollHeight;
+    if (!running) { clearInterval(pollTimer); loadRuns(); }
+  }, 1500);
+}
+
+loadStats();
+loadRuns();
+</script>
+</body>
+</html>

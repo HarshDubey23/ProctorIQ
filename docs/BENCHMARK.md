@@ -28,7 +28,7 @@ Collected over 5 sessions with a 720p webcam at 640×480:
 
 ### Preprocessing
 
-- Sliding window: 30 frames, stride 5 (87.5% overlap between adjacent windows)
+- Sliding window: 30 frames, stride 5 (83.3% overlap between adjacent windows)
 - Flatten: `(30, 936) → (28,080)`
 - PCA: fit on training set only. 97% variance retained at **64 components**
 - Train/val/test split: 70/15/15, stratified by class

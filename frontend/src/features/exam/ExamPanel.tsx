@@ -9,10 +9,12 @@ import { useDetection, computeAttentionScore } from '../selftest/useDetection';
 import { StatusPill, type StatusState } from '../../components/ui/StatusPill';
 import { fetchSessionHash, computeSessionHash } from '../../lib/signing';
 import { Button } from '../../components/ui/button';
+import type { PublicQuestion } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 export function ExamPanel() {
+  const roomId = sessionStorage.getItem('exam_room_id') ?? undefined;
   const {
     state,
     countdownValue,
@@ -24,7 +26,8 @@ export function ExamPanel() {
     correctCount,
     totalQuestions,
     sessionId,
-    QUESTIONS,
+    questions,
+    loadingPaper,
     startExam,
     resetExam,
     selectAnswer,
@@ -32,9 +35,9 @@ export function ExamPanel() {
     prevQuestion,
     submit,
     wsTick,
-  } = useExamSession();
+  } = useExamSession(roomId);
 
-  const EXAM_DURATION = 15 * 60;
+  const EXAM_DURATION = timeRemaining;
 
   const { videoRef, isDemo } = useWebcam();
   const proctoringActive = state === 'in_progress' || state === 'results';
@@ -145,15 +148,26 @@ export function ExamPanel() {
     URL.revokeObjectURL(url);
   }, [answers, events, submittedAt, correctCount, totalQuestions, reportHash, sessionId, serverVerified]);
 
-  const currentQuestion = QUESTIONS[currentQuestionIndex];
-  const currentAnswer = answers.find((a) => a.questionId === currentQuestion?.id);
+  const currentQuestion = questions[currentQuestionIndex];
+  const currentAnswer = answers.find((a) => parseInt(a.questionId) === currentQuestionIndex);
   const answeredCount = answers.filter((a) => a.selectedIndex !== null).length;
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;
   const score = detectionResult ? computeAttentionScore(detectionResult) : 0;
   const attentionLabel = detectionResult?.attention ?? 'focused';
 
-  const progressPct = answeredCount / totalQuestions;
+  const progressPct = totalQuestions > 0 ? answeredCount / totalQuestions : 0;
+
+  if (loadingPaper) {
+    return (
+      <div className="flex h-full items-center justify-center bg-paper">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 border-[3px] border-ledger border-t-transparent animate-spin" />
+          <span className="font-body text-sm text-graphite">Loading exam...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-full w-full flex-col bg-paper">
@@ -215,8 +229,8 @@ export function ExamPanel() {
             <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
               <ExamQuestionCard
                 question={currentQuestion}
-                answer={currentAnswer ?? { questionId: currentQuestion.id, selectedIndex: null }}
-                onSelect={selectAnswer}
+                answer={currentAnswer ?? { questionId: String(currentQuestionIndex), selectedIndex: null }}
+                onSelect={(qId, idx) => selectAnswer(currentQuestionIndex, idx)}
                 showResults={false}
                 questionNumber={currentQuestionIndex + 1}
               />

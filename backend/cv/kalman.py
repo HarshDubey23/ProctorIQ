@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-from filterpy.kalman import KalmanFilter as _KalmanFilter  # type: ignore[import-untyped]
+from filterpy.kalman import KalmanFilter as _KalmanFilter
 
 
 @dataclass

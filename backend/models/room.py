@@ -21,6 +21,7 @@ class Room(BaseModel):
     room_id: str
     created_at: datetime
     title: str = ""
+    paper_id: str = ""
     duration_minutes: int | None = None
     max_participants: int | None = None
     host_token: str = ""

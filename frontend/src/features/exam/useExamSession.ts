@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { QUESTIONS } from './questions';
+import type { PublicQuestion } from './types';
 import { saveSession } from '../../lib/db';
 import type { StoredSession, StoredEvent } from '../../lib/db';
 import { useProctoringSocket } from '../../lib/useProctoringSocket';
@@ -11,29 +11,24 @@ import type {
 } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-const EXAM_DURATION = 15 * 60;
 
-function createInitialAnswers(): ExamAnswer[] {
-  return QUESTIONS.map((q) => ({ questionId: q.id, selectedIndex: null }));
+function createInitialAnswers(questionCount: number): ExamAnswer[] {
+  return Array.from({ length: questionCount }, (_, i) => ({ questionId: String(i), selectedIndex: null }));
 }
 
-function computeCorrectCount(answers: ExamAnswer[]): number {
-  return answers.filter((a) => {
-    const q = QUESTIONS.find((qq) => qq.id === a.questionId);
-    return q && a.selectedIndex === q.correctIndex;
-  }).length;
-}
-
-export function useExamSession() {
+export function useExamSession(roomId?: string) {
   const [state, setState] = useState<ExamState>('idle');
   const [countdownValue, setCountdownValue] = useState(3);
-  const [answers, setAnswers] = useState<ExamAnswer[]>(createInitialAnswers);
+  const [answers, setAnswers] = useState<ExamAnswer[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(EXAM_DURATION);
+  const [timeRemaining, setTimeRemaining] = useState(15 * 60);
   const [events, setEvents] = useState<ProctorEvent[]>([]);
   const [submittedAt, setSubmittedAt] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState('');
   const [sessionRegistered, setSessionRegistered] = useState(false);
+  const [questions, setQuestions] = useState<PublicQuestion[]>([]);
+  const [examDurationSec, setExamDurationSec] = useState(15 * 60);
+  const [loadingPaper, setLoadingPaper] = useState(true);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -55,6 +50,28 @@ export function useExamSession() {
       countdownRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    if (!roomId) {
+      setLoadingPaper(false);
+      return;
+    }
+    fetch(`${API_BASE}/api/rooms/${roomId}/paper`)
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to fetch paper');
+        return r.json();
+      })
+      .then(p => {
+        setQuestions(p.questions);
+        setExamDurationSec(p.duration_minutes * 60);
+        setTimeRemaining(p.duration_minutes * 60);
+        setAnswers(createInitialAnswers(p.questions.length));
+        setLoadingPaper(false);
+      })
+      .catch(() => {
+        setLoadingPaper(false);
+      });
+  }, [roomId]);
 
   async function registerSession(sid: string, startTs: number): Promise<void> {
     try {
@@ -84,15 +101,12 @@ export function useExamSession() {
       confidence: null,
       details: e.details ? { details: e.details } : null,
     }));
-    const correctCount = computeCorrectCount(answersRef.current);
-    const total = QUESTIONS.length;
-    const quizScore = total > 0 ? Math.round((correctCount / total) * 100) : 0;
     const sessionRecord: StoredSession = {
       id: sessionId,
       start: startTimeRef.current,
       end: now,
       mode: 'exam',
-      quizScore,
+      quizScore: null,
       finalScore: null,
       pctFocused: null,
       verdict: null,
@@ -102,11 +116,25 @@ export function useExamSession() {
     saveSession(sessionRecord).catch(() => {});
     setSubmittedAt(now);
     setState('submitted');
+
+    // Submit answers to backend for server-side scoring
+    const ans = answersRef.current;
+    const submission = {
+      answers: ans.map(a => ({
+        question_id: questions[parseInt(a.questionId)]?.id ?? a.questionId,
+        selected_answer: a.selectedIndex != null ? String(a.selectedIndex) : null,
+      })),
+    };
+    fetch(`${API_BASE}/api/sessions/${sessionId}/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(submission),
+    }).catch(() => {});
+
     setTimeout(() => setState('results'), 600);
-  }, [clearTimers, wsDisconnect, sessionId]);
+  }, [clearTimers, wsDisconnect, sessionId, questions]);
 
   const startTimer = useCallback(() => {
-    setTimeRemaining(EXAM_DURATION);
     timerRef.current = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
@@ -133,8 +161,8 @@ export function useExamSession() {
           setSessionRegistered(false);
           setState('in_progress');
           registerSession(sid, startTimeRef.current);
-          const roomId = sessionStorage.getItem('exam_room_id') || undefined;
-          wsConnect(sid, { roomId });
+          const rid = sessionStorage.getItem('exam_room_id') || undefined;
+          wsConnect(sid, { roomId: rid });
           startTimer();
           return 0;
         }
@@ -168,17 +196,17 @@ export function useExamSession() {
     setSessionId('');
     setSessionRegistered(false);
     setState('idle');
-    setAnswers(createInitialAnswers());
+    setAnswers(createInitialAnswers(questions.length));
     setCurrentQuestionIndex(0);
-    setTimeRemaining(EXAM_DURATION);
+    setTimeRemaining(examDurationSec);
     setEvents([]);
     setSubmittedAt(null);
-  }, [clearTimers, wsDisconnect]);
+  }, [clearTimers, wsDisconnect, questions.length, examDurationSec]);
 
-  const selectAnswer = useCallback((questionId: number, index: number) => {
+  const selectAnswer = useCallback((questionIndex: number, selectedIndex: number) => {
     setAnswers((prev) =>
-      prev.map((a) =>
-        a.questionId === questionId ? { ...a, selectedIndex: a.selectedIndex === index ? null : index } : a,
+      prev.map((a, i) =>
+        i === questionIndex ? { ...a, selectedIndex: a.selectedIndex === selectedIndex ? null : selectedIndex } : a,
       ),
     );
   }, []);
@@ -188,8 +216,8 @@ export function useExamSession() {
   }, []);
 
   const nextQuestion = useCallback(() => {
-    setCurrentQuestionIndex((prev) => Math.min(prev + 1, QUESTIONS.length - 1));
-  }, []);
+    setCurrentQuestionIndex((prev) => Math.min(prev + 1, questions.length - 1));
+  }, [questions.length]);
 
   const prevQuestion = useCallback(() => {
     setCurrentQuestionIndex((prev) => Math.max(prev - 1, 0));
@@ -232,9 +260,9 @@ export function useExamSession() {
     };
   }, [clearTimers, wsDisconnect]);
 
-  const correctCount = computeCorrectCount(answers);
-  const totalQuestions = QUESTIONS.length;
-  const examScorePct = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
+  const correctCount = 0;
+  const totalQuestions = questions.length;
+  const examScorePct = 0;
 
   return {
     state,
@@ -249,7 +277,8 @@ export function useExamSession() {
     examScorePct,
     sessionId,
     sessionRegistered,
-    QUESTIONS,
+    questions,
+    loadingPaper,
     startExam,
     resetExam,
     selectAnswer,

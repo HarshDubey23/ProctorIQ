@@ -1,10 +1,11 @@
-import type { ExamQuestion, ExamAnswer } from './types';
-import { Check, X } from 'lucide-react';
+import type { ExamAnswer } from './types';
+import type { PublicQuestion } from './types';
+import { Check } from 'lucide-react';
 
 interface ExamQuestionCardProps {
-  question: ExamQuestion;
+  question: PublicQuestion;
   answer: ExamAnswer;
-  onSelect: (questionId: number, index: number) => void;
+  onSelect: (questionId: string, index: number) => void;
   showResults: boolean;
   questionNumber: number;
 }
@@ -18,36 +19,26 @@ export function ExamQuestionCard({
   showResults,
   questionNumber,
 }: ExamQuestionCardProps) {
+  const options = question.options ?? [];
+
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <div className="mb-1">
-        <span className="chip !text-[10px] !border-[1px]">{question.topic}</span>
-      </div>
-      <h2 className="font-body text-lg text-ink leading-relaxed mb-6">
-        {questionNumber}. {question.question}
+      <h2 className="font-body text-lg text-ink leading-relaxed mb-2">
+        {questionNumber}. {question.title}
       </h2>
+      {question.body && (
+        <p className="font-body text-sm text-graphite mb-4">{question.body}</p>
+      )}
 
       <div className="flex flex-col gap-2.5">
-        {question.options.map((option, idx) => {
+        {options.map((option, idx) => {
           const isSelected = answer.selectedIndex === idx;
-          const isCorrect = question.correctIndex === idx;
-          const isWrongSelected = showResults && isSelected && !isCorrect;
 
           let borderColor = "border-ink";
           let bgColor = "bg-paper-2";
           let textColor = "text-ink";
 
-          if (showResults) {
-            if (isCorrect) {
-              borderColor = "border-ledger";
-              bgColor = "bg-ledger/10";
-              textColor = "text-ledger";
-            } else if (isWrongSelected) {
-              borderColor = "border-ochre";
-              bgColor = "bg-ochre/10";
-              textColor = "text-ochre";
-            }
-          } else if (isSelected) {
+          if (isSelected) {
             borderColor = "border-ledger";
             bgColor = "bg-ledger/10";
             textColor = "text-ledger";
@@ -63,14 +54,12 @@ export function ExamQuestionCard({
               aria-label={`Option ${OPTION_LABELS[idx]}: ${option}`}
             >
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center border-[2px] border-ink font-mono text-[13px] font-bold tabular-nums ${
-                isSelected || (showResults && isCorrect)
+                isSelected
                   ? 'bg-ledger text-paper border-ledger'
                   : 'bg-paper text-graphite'
               }`}>
-                {showResults && isCorrect ? (
+                {isSelected ? (
                   <Check size={14} />
-                ) : showResults && isWrongSelected ? (
-                  <X size={14} />
                 ) : (
                   OPTION_LABELS[idx]
                 )}

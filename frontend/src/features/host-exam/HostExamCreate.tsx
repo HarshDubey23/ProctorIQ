@@ -1,5 +1,5 @@
 import { useState, useCallback, type FormEvent } from "react";
-import { Clock, Users, Stamp } from "lucide-react";
+import { Clock, Users, Stamp, FileText } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 
@@ -10,6 +10,7 @@ interface HostExamCreateProps {
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 export function HostExamCreate({ onCreated }: HostExamCreateProps) {
+  const [paperId, setPaperId] = useState("");
   const [title, setTitle] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [maxParticipants, setMaxParticipants] = useState("");
@@ -18,10 +19,14 @@ export function HostExamCreate({ onCreated }: HostExamCreateProps) {
 
   const handleSubmit = useCallback(async (e: FormEvent) => {
     e.preventDefault();
+    if (!paperId.trim()) {
+      setError("Please enter a paper ID or build a new paper first");
+      return;
+    }
     setError("");
     setCreating(true);
     try {
-      const body: Record<string, unknown> = {};
+      const body: Record<string, unknown> = { paper_id: paperId.trim() };
       if (title.trim()) body.title = title.trim();
       const dur = parseInt(durationMinutes, 10);
       if (!isNaN(dur) && dur > 0) body.duration_minutes = dur;
@@ -45,7 +50,7 @@ export function HostExamCreate({ onCreated }: HostExamCreateProps) {
     } finally {
       setCreating(false);
     }
-  }, [title, durationMinutes, maxParticipants, onCreated]);
+  }, [paperId, title, durationMinutes, maxParticipants, onCreated]);
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center bg-paper p-6">
@@ -58,6 +63,31 @@ export function HostExamCreate({ onCreated }: HostExamCreateProps) {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <label className="grid gap-2">
+              <span className="font-label text-label text-graphite">
+                <FileText size={12} className="inline mr-1" />
+                Paper ID
+              </span>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={paperId}
+                  onChange={(e) => setPaperId(e.target.value)}
+                  placeholder="p_2026-07-04_..."
+                  className="flex-1 border-[3px] border-ink bg-paper-2 px-3 py-2.5 font-body text-sm text-ink outline-none"
+                  aria-label="Paper ID"
+                />
+                <Button
+                  type="button"
+                  variant="default"
+                  onClick={() => window.location.href = "/builder"}
+                  className="whitespace-nowrap"
+                >
+                  Build New
+                </Button>
+              </div>
+            </label>
+
             <label className="grid gap-2">
               <span className="font-label text-label text-graphite">Exam Title</span>
               <input
@@ -82,7 +112,7 @@ export function HostExamCreate({ onCreated }: HostExamCreateProps) {
                   value={durationMinutes}
                   onChange={(e) => setDurationMinutes(e.target.value)}
                   min={1}
-                  placeholder="Untimed"
+                  placeholder="From paper"
                   className="border-[3px] border-ink bg-paper-2 px-3 py-2.5 font-mono text-sm text-ink outline-none"
                   aria-label="Duration in minutes"
                 />
@@ -110,7 +140,7 @@ export function HostExamCreate({ onCreated }: HostExamCreateProps) {
               </div>
             )}
 
-            <Button type="submit" variant="primary" disabled={creating} className="w-full">
+            <Button type="submit" variant="primary" disabled={creating || !paperId.trim()} className="w-full">
               {creating ? "Creating..." : "Create Exam"}
             </Button>
           </form>

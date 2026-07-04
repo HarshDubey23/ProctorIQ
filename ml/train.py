@@ -21,10 +21,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
 
 
-CLASSES = sorted(["focused", "distracted", "absent", "drowsy"])
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -78,6 +76,14 @@ def main() -> None:
     data_dir = Path(args.data)
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    labels_path = data_dir / "labels.json"
+    if labels_path.exists():
+        label_to_int = json.loads(labels_path.read_text())
+        CLASSES = sorted(label_to_int.keys(), key=lambda k: label_to_int[k])
+    else:
+        CLASSES = ["absent", "distracted", "drowsy", "focused"]
+    print(f"Loaded classes from labels.json: {CLASSES}")
 
     X_train = np.load(str(data_dir / "X_train.npy"))
     y_train = np.load(str(data_dir / "y_train.npy"))

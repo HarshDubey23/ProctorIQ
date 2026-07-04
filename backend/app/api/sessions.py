@@ -6,7 +6,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
+from backend.core.paper_store import InMemoryPaperStore
+from backend.core.room_store import InMemoryRoomStore
 from backend.core.session_store import InMemorySessionStore, SessionStore
 from backend.cv.scoring import FlagEvent, compute_attention_score
 from backend.models.session import Session, SessionCreate, SessionUpdate, SessionSummary, Verdict
@@ -17,6 +20,23 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 def _get_store(request: Request) -> SessionStore:
     return cast(SessionStore, request.app.state.session_store)
+
+
+def _get_room_store(request: Request) -> InMemoryRoomStore:
+    return cast(InMemoryRoomStore, request.app.state.room_store)
+
+
+def _get_paper_store(request: Request) -> InMemoryPaperStore:
+    return cast(InMemoryPaperStore, request.app.state.paper_store)
+
+
+class AnswerSubmission(BaseModel):
+    question_id: str
+    selected_answer: str | None
+
+
+class SubmitAnswersRequest(BaseModel):
+    answers: list[AnswerSubmission]
 
 
 @router.get("")
@@ -92,6 +112,40 @@ async def delete_session(
         mode=existing.mode,
     )
     await store.update_session(blank)
+
+
+@router.post("/{session_id}/submit", status_code=200)
+async def submit_answers(
+    session_id: str,
+    body: SubmitAnswersRequest,
+    store: InMemorySessionStore = Depends(_get_store),
+    room_store: InMemoryRoomStore = Depends(_get_room_store),
+    paper_store: InMemoryPaperStore = Depends(_get_paper_store),
+) -> dict[str, float]:
+    session = await store.get_session(session_id)
+    if session is None:
+        raise HTTPException(404, "Session not found")
+
+    room = await room_store.get_room_for_session(session_id)
+    if room is None or not room.paper_id:
+        raise HTTPException(400, "No paper associated with this session")
+
+    paper = await paper_store.get(room.paper_id)
+    if paper is None:
+        raise HTTPException(404, "Paper not found")
+
+    correct = {q.id: q.correct_answer for q in paper.questions}
+    correct_count = sum(
+        1 for a in body.answers
+        if a.selected_answer is not None and correct.get(a.question_id) == a.selected_answer
+    )
+    total = len(paper.questions)
+    quiz_score = round((correct_count / total * 100), 2) if total > 0 else 0.0
+
+    session.quiz_score = quiz_score
+    await store.update_session(session)
+
+    return {"score": quiz_score, "correct": correct_count, "total": total}
 
 
 @router.get("/{session_id}/report")
