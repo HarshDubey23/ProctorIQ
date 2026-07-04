@@ -1,7 +1,8 @@
-# ProctorIQ
+# ProctorIQ v2
 
-**Real-time attention analytics with tamper-proof integrity verification.**  
-No video ever leaves the device — all ML inference runs in-browser via WebAssembly.
+**Browser-first, privacy-preserving exam integrity platform.**  
+All ML inference runs client-side via MediaPipe WASM + ONNX Runtime Web.  
+Only structured attention events — never video — reach the server.
 
 [![Live Demo](https://img.shields.io/badge/Try%20it%20live-00875A?style=for-the-badge&logo=vercel&logoColor=white)](https://proctoriq.vercel.app)
 [![CI](https://img.shields.io/github/actions/workflow/status/HarshDubey23/ProctorIQ/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/HarshDubey23/ProctorIQ/actions/workflows/ci.yml)
@@ -9,22 +10,72 @@ No video ever leaves the device — all ML inference runs in-browser via WebAsse
 
 ---
 
-## Why This Exists: The Self-Grading Problem
+## The Real Problem: Tamper-Proof Exam Integrity
 
-Most proctoring demos have a problem: the student's score is computed in JavaScript, stored in localStorage, and sent to the server as a claim. Nothing stops the student from opening DevTools, setting `final_score = 0.95`, and downloading a pristine report.
+Most proctoring demos compute the student's score in JavaScript, store it in localStorage, and send it to the server as a claim. Nothing stops the student from opening DevTools, setting `final_score = 0.95`, and downloading a pristine report.
 
-ProctorIQ solves this differently. The client streams structured **events** (focused, distracted, drowsy, absent) to the server over WebSocket — not scores, not verdicts. The server:
+ProctorIQ solves this differently. The client streams structured **events** (focused, distracted, drowsy, absent) over WebSocket — not scores, not verdicts. The server:
 
 1. Re-computes the attention score from the raw event sequence
 2. Applies the same scoring rules the client uses
 3. HMAC-SHA256 signs the canonical payload (session_id, score, verdict, event list)
 4. Stores only the signature; the signed PDF report includes the hash
 
-If someone PATCHes the session record with a forged `quiz_score`, the stored signature will **not** match the re-computed signature at verification time. The report seal reads "Server-Verified" only when the hash chain is intact. If it reads "Local Draft," you know something was tampered with.
+If someone PATCHes the session record with a forged `quiz_score`, the stored signature will **not** match the re-computed signature at verification time. The report seal reads **"Server-Verified"** only when the hash chain is intact.
 
-This is the single most technically interesting decision in the project — and the E2E test suite includes a permanent regression test for it.
+> Full reasoning at [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#11-hmac-sha256-report-signing-vs-server-database-as-source-of-truth).
 
-> For the full reasoning, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#11-hmac-sha256-report-signing-vs-server-database-as-source-of-truth).
+---
+
+## What's New in v2
+
+ProctorIQ v2 introduces a complete visual overhaul and a set of production-ready features:
+
+### Neo-Brutalist Design System
+- **Examination Hall Brutalism** — hard edges, thick borders, hard offset shadows, honest materials
+- **Printerly ink colors** — Paper (#F4F1EA), Ink (#1A1A17), Stamp Red (#9B2D20), Ledger Green (#2F5D50)
+- **Four-font system** — Archivo Expanded (display), Public Sans (UI body), Space Mono (data), Saira Condensed (labels)
+- **Zero border-radius** — everything is sharp and structural
+
+### Paper Builder (Teacher Flow)
+- Full exam creation with searchable question bank
+- Drag-reorder questions, section grouping, live mark summary
+- AI Paper Drafting — generate draft questions by topic/difficulty
+- Starter Template Gallery — pre-built exam templates (MCQ Quiz, Coding Test, Viva-Style)
+- Publish with unique link + downloadable QR code (SVG/PNG)
+- Access modes: Open link or Roster-restricted
+
+### Live Host Dashboard
+- Control-room style on Ink-Slate surface
+- Cohort Pulse Wall of live StampedSeals — one per student
+- Four signal-channel colors (Gaze, Head-Pose, Audio Anomaly, Tab-Focus)
+- Flagged-student filtering, WebSocket-broadcast updates
+- End exam + download signed PDF reports as ZIP
+
+### Student Exam UI (Calm & Fair)
+- Minimal chrome, no surveillance feel
+- Single centered question card with mono timer
+- Auto-save with seamless reconnect (IndexedDB-based)
+- Camera/mic permission + calibration flow
+- **No Stamp Red, no alert flags** — student-calm guarantee
+
+### Model Card & Training Page
+- Published at `/model` with real training curves (loss/accuracy per epoch)
+- 5-fold cross-validation results table
+- Full Model Card (Google format): dataset, architecture, evaluation, limitations
+- Stamped as an official document
+
+### Integrity Verification
+- SHA-256 HMAC-signed reports
+- Server-Verified vs Local Draft seal on every report
+- Verification endpoint re-checks the hash chain
+
+### Additional Features
+- **Hindi/English UI toggle** — language switcher on landing page
+- **Teacher Replay (God View)** — per-student timeline scrubber
+- **Accommodation Profiles** — extended time, relaxed proctoring per student
+- **StampedSeal** — circular official seal with live confidence waveform
+- **Vapour Text Effect** — animated headline cycling through "EXAM / INTEGRITY / PROVEN / PROCTORIQ"
 
 ---
 
@@ -37,7 +88,7 @@ cd frontend && npm install && cd ..
 docker compose up --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) (or [http://localhost:5173](http://localhost:5173) for the Vite dev server).
+Open [http://localhost:3000](http://localhost:3000) (or [http://localhost:5173](http://localhost:5173) for Vite dev server).
 
 ### Manual start (without Docker)
 
@@ -63,12 +114,12 @@ Browser (MediaPipe WASM → ONNX Runtime Web) ──WebSocket──> FastAPI Bac
        │  structured events only (no video)                  │  HMAC-SHA256 sign
        │                                                    │  PDF report generation
        ▼                                                    ▼
-  Aperture Gauge (live)                              Signed Report (tamper-proof)
+  StampedSeal (live confidence)                      Signed Report (tamper-proof)
 ```
 
 - **Client**: MediaPipe extracts 478 face landmarks → solvePnP computes head pose (yaw/pitch/roll) + EAR → 6-D Kalman filter smooths → rule engine + optional 1D-CNN → events streamed via WebSocket
 - **Server**: Receives events → recomputes score → HMAC-SHA256 signs canonical payload → generates PDF report with embedded timeline
-- **No video stored**: The server never receives or stores video frames. What it receives is `{"event_type": "distracted", "timestamp_s": 12.5, "confidence": 0.87}`
+- **No video stored**: The server never receives or stores video frames — only `{"event_type": "distracted", "timestamp_s": 12.5, "confidence": 0.87}`
 
 ### Key Numbers
 
@@ -77,7 +128,7 @@ Browser (MediaPipe WASM → ONNX Runtime Web) ──WebSocket──> FastAPI Bac
 | Model accuracy | 99.22% |
 | Macro F1 | 0.9918 |
 | Cross-validation (5-fold) | 0.995 ± 0.003 |
-| Model size (quantized) | 0.6 MB |
+| Model size (quantized) | 541 KB |
 | Inference latency (ML) | <15ms in Web Worker |
 | Per-frame rule latency | ~0.5ms |
 | Kalman-filtered jitter | ±0.5° (down from ±2-3°) |
@@ -88,21 +139,33 @@ Full benchmark at [docs/BENCHMARK.md](docs/BENCHMARK.md).
 
 ## What You Can Do With It
 
-### 1. Self-Test / Focus Coach
+### 1. Build & Publish a Paper (Teacher)
 
-Open the app, grant camera access, and see the **ApertureGauge** respond in real time. An 8-blade camera-iris diaphragm opens/closes based on attention confidence, interpolating through a six-color semantic palette in OKLCH space. No signup, no server round-trip — everything runs locally.
+Open the **Paper Builder** at `/builder` to create an exam from scratch or use a starter template. Add questions from a tagged bank, organize into sections, set marks and duration. Publish with a single click — get a unique link and downloadable QR code.
 
 ### 2. Host a Live Exam
 
-Click "Host Exam" from the landing page to create a room. Share the join link (or QR code) with anyone. Participants join without creating accounts. The host dashboard shows:
-- Live attention states for every participant in a responsive card grid
+Click "Host Exam" from the landing page. Share the join link or QR code with participants. The **Mission Control** dashboard (Ink-Slate) shows:
+- Live Cohort Pulse Wall with per-student stamped seals
 - Sort by flagged participants or search by name
 - WebSocket-broadcast updates with <5ms latency
-- End the exam and download a ZIP of individually signed PDF reports + summary CSV
+- End the exam and download signed PDF reports as ZIP
 
-### 3. Verify Report Integrity
+### 3. Take an Exam (Student)
 
-Each signed PDF report includes a SHA-256 HMAC over the server-computed score, verdict, and event sequence. The verification endpoint re-computes the expected hash: if it matches, the report seal reads "Server-Verified." If not, "Local Draft" — meaning the report cannot be trusted.
+Scan the QR or click the link → enter your name → camera permission + calibration → the exam begins. A calm, minimal UI with a mono timer and question cards. **No surveillance feel, no red alerts.**
+
+### 4. Self-Test / Focus Coach
+
+Open the app, grant camera access, and see the **StampedSeal** respond in real time. No signup, no server round-trip — everything runs locally.
+
+### 5. Verify Report Integrity
+
+Each signed PDF report includes a SHA-256 HMAC. The verification endpoint re-computes the expected hash: if it matches, the seal reads **"Server-Verified"** — if not, **"Local Draft"**.
+
+### 6. Explore the Model
+
+Visit `/model` to see how the 1D-CNN was trained with 5-fold cross-validation, real training curves, and a full Model Card documenting every metric and limitation.
 
 ---
 
@@ -110,22 +173,28 @@ Each signed PDF report includes a SHA-256 HMAC over the server-computed score, v
 
 | Route | Description |
 |-------|-------------|
-| `/` | Main app — 6-panel carousel (Landing → Exam → Session → Report → Trends → Settings) |
+| `/` | Main landing — marketing hero, feature grid, model proof band |
+| `/builder` | Paper Builder — create, assemble, and publish exams |
 | `/host` | Create a new exam room |
 | `/host/{room_id}` | Mission Control dashboard for an existing room |
 | `/join/{room_id}` | Participant join page (no signup required) |
-| `/cohort/{room_id}` | Live cohort dashboard |
+| `/cohort/{room_id}` | Live cohort pulse wall |
+| `/model` | "How This Model Was Trained" + Model Card |
+| `/styleguide` | Visual design system reference |
 
 ---
 
-## Design — "Aperture"
+## Design — "Examination Hall Brutalism"
 
-ProctorIQ's visual system is inspired by premium optical instruments (Leica, Zeiss), executed with restraint:
+ProctorIQ v2's visual identity is inspired by official examination documents that behave like live instruments:
 
-- **Titanium neutrals** — Cool brushed-metal light grays in light mode; warm charcoal in Night Session
-- **Six-color semantic palette** — Each color has exactly one job
-- **Three-typeface system** — Fraunces (display serif), Inter Variable (UI sans), Martian Mono (data mono)
-- **ApertureGauge** — 8-blade camera-iris diaphragm with Framer Motion spring physics
+- **Exposed structure** — thick visible borders, hard grid lines, stamped forms
+- **Honest material** — flat printerly ink colors on paper-white and slate-dark surfaces
+- **Heavy mass** — hard offset drop shadows (6px 6px 0 Ink), never soft/glow shadows
+- **Four-typeface system** — Archivo Expanded (display), Public Sans (UI body), Space Mono (data), Saira Condensed (labels)
+- **StampedSeal** — circular official seal with live confidence waveform ring
+- **Zero border-radius** — everything is sharp and structural
+- **No neon, no glow, no gradients** — every color is a mature, printerly ink
 
 ---
 

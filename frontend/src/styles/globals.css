@@ -1,7 +1,12 @@
-/* Font imports — self-hosted to avoid FOUC and external network deps */
-@import '@fontsource-variable/fraunces';
-@import '@fontsource-variable/inter';
-@import '@fontsource-variable/martian-mono';
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource/archivo/700.css';
+@import '@fontsource/archivo/800.css';
+@import '@fontsource/archivo/900.css';
+@import '@fontsource/public-sans/400.css';
+@import '@fontsource/public-sans/600.css';
+@import '@fontsource/space-mono/400.css';
+@import '@fontsource/space-mono/700.css';
+@import '@fontsource/saira-condensed/600.css';
 
 @tailwind base;
 @tailwind components;
@@ -15,6 +20,10 @@
   }
 
   html {
+    min-height: 100%;
+    height: 100%;
+    background: var(--paper);
+    color: var(--ink);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -22,35 +31,103 @@
 
   body {
     margin: 0;
-    padding: 0;
-    font-family: 'Inter Variable', system-ui, sans-serif;
+    min-height: 100vh;
+    height: 100%;
+    width: 100vw;
+    overflow-x: hidden;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
     font-size: var(--text-base);
     line-height: var(--leading-normal);
-    letter-spacing: -0.01em;
-    background-color: var(--surface-0);
-    color: var(--ink);
-    overflow: hidden;
-    height: 100vh;
-    width: 100vw;
+    letter-spacing: 0;
   }
 
   #root {
+    min-height: 100vh;
     height: 100%;
     width: 100%;
   }
 
-  :focus-visible {
-    outline: 2px solid var(--jade);
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 3px solid var(--stamp);
     outline-offset: 2px;
   }
 
   ::selection {
-    background-color: var(--jade);
-    color: #FFFFFF;
+    background-color: var(--stamp);
+    color: var(--paper);
   }
 
   [aria-hidden='true'] {
     pointer-events: none;
+  }
+}
+
+@layer components {
+  .card-brutal {
+    border: 3px solid var(--ink);
+    background: var(--paper);
+    box-shadow: var(--shadow-brutal);
+    color: var(--ink);
+  }
+
+  .chip {
+    border: 2px solid var(--ink);
+    background: var(--paper-2);
+    color: var(--ink);
+    padding: 2px 8px;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    line-height: 1.2;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .btn-brutal {
+    border: 3px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: var(--shadow-brutal);
+    cursor: pointer;
+    padding: 12px 20px;
+    font-family: var(--font-body);
+    font-weight: 600;
+    transition: transform 60ms linear, box-shadow 60ms linear;
+  }
+
+  .btn-brutal:hover {
+    box-shadow: 8px 8px 0 0 var(--ink);
+    transform: translate(-2px, -2px);
+  }
+
+  .btn-brutal:active {
+    box-shadow: 2px 2px 0 0 var(--ink);
+    transform: translate(4px, 4px);
+  }
+
+  .btn-primary {
+    background: var(--stamp);
+    color: var(--paper);
+  }
+
+  .data {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -59,26 +136,114 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* --- Typeface utility classes --- */
   .font-display {
-    font-family: 'Fraunces Variable', 'Lora', 'Source Serif 4', Georgia, serif;
-    font-variation-settings: 'opsz' 72;
-    letter-spacing: var(--tracking-tight);
+    font-family: var(--font-display);
+    font-stretch: expanded;
+    font-variation-settings: 'wdth' 125;
+    letter-spacing: 0;
   }
 
   .font-display-sm {
-    font-family: 'Fraunces Variable', 'Lora', 'Source Serif 4', Georgia, serif;
-    font-variation-settings: 'opsz' 36;
+    font-family: var(--font-display);
+    font-stretch: expanded;
+    font-variation-settings: 'wdth' 112.5;
+    letter-spacing: 0;
   }
 
-  .font-sans {
-    font-family: 'Inter Variable', system-ui, sans-serif;
-    letter-spacing: -0.01em;
+  .font-sans,
+  .font-body {
+    font-family: var(--font-body);
+    letter-spacing: 0;
   }
 
   .font-mono {
-    font-family: 'Martian Mono Variable', 'JetBrains Mono', 'Fira Code', monospace;
-    letter-spacing: var(--tracking-mono);
+    font-family: var(--font-mono);
+    letter-spacing: 0;
     font-variant-numeric: tabular-nums;
+  }
+
+  .font-label {
+    font-family: var(--font-label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}
+
+@keyframes stampIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.stamp-in {
+  animation: stampIn 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.reveal-up {
+  animation: revealUp 320ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes flagJolt {
+  0%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+.flag-jolt {
+  animation: flagJolt 200ms ease-in-out 2;
+}
+
+@keyframes sealFlare {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.seal-flare {
+  animation: sealFlare 260ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  transform-origin: center;
+}
+
+.seal-tick {
+  transition: stroke 300ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-up,
+  .stamp-in {
+    animation: none;
+  }
+
+  * {
+    scroll-behavior: auto !important;
   }
 }

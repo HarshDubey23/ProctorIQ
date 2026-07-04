@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from 'react';
+import { type ReactNode } from "react";
 
 interface PanelShellProps {
   ghostLabel: string;
@@ -9,46 +9,29 @@ interface PanelShellProps {
 }
 
 export function PanelShell({ ghostLabel, isActive, children, ctaLabel, onCtaClick }: PanelShellProps) {
-  const filterId = useId();
-
   return (
-    <div className="relative h-full w-full overflow-hidden">
-      {/* Layer 1: Ghost text — lowest, strictly decorative */}
+    <div className="relative h-full w-full overflow-hidden bg-paper">
+      {/* Ghost text layer — decorative */}
       <div
         className="pointer-events-none absolute inset-0 z-0 flex select-none items-center justify-center"
         aria-hidden="true"
       >
-        <span className="font-display text-[clamp(5.625rem,28vw,23.75rem)] leading-none tracking-tighter" style={{ color: 'var(--ink-faint)' }}>
+        <span
+          className="font-display text-[clamp(5.625rem,28vw,23.75rem)] leading-none text-paper-2"
+          style={{ opacity: 0.5 }}
+        >
           {ghostLabel}
         </span>
       </div>
 
-      {/* Layer 2: Grain overlay */}
-      <svg
-        className="pointer-events-none absolute inset-0 z-[1] h-full w-full opacity-40"
-        style={{ backgroundSize: '200px', filter: 'contrast(1.2)' }}
-        aria-hidden="true"
-      >
-        <filter id={filterId}>
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.9"
-            numOctaves="4"
-            stitchTiles="stitch"
-          />
-        </filter>
-        <rect width="100%" height="100%" filter={`url(#${filterId})`} opacity="0.08" />
-      </svg>
-
-      {/* Layer 3: Panel content — above ghost + grain */}
+      {/* Panel content */}
       <div className="relative z-10 flex h-full w-full flex-col">
         {children}
       </div>
 
       {isActive && ctaLabel && (
         <button
-          className="absolute bottom-8 right-8 z-20 rounded-xl px-6 py-3 font-display text-[clamp(1.25rem,4vw,3.5rem)] uppercase tracking-widest backdrop-blur-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]"
-          style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--hairline)', borderTop: '1px solid var(--edge-highlight)', boxShadow: 'var(--shadow-sm)', color: 'var(--ink)' }}
+          className="absolute bottom-8 right-8 z-20 border-[3px] border-ink bg-paper px-6 py-3 font-display text-xl uppercase tracking-widest text-ink shadow-brutal hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-1 active:translate-y-1 transition-[transform,box-shadow] duration-[60ms] linear"
           aria-label="Call to action"
           tabIndex={0}
           onClick={onCtaClick}

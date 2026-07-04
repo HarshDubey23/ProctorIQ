@@ -1,73 +1,107 @@
 # Architecture
 
-## System Diagram
+## System Diagram (v2)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              Client Browser                                     │
-│                                                                                  │
-│  ┌───────────────────────────────────────────────────────────────────────────┐   │
-│  │                      React App (Vite + TypeScript)                        │   │
-│  │                                                                           │   │
-│  │  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐  ┌───────────┐  │   │
-│  │  │  Host    │  │  Join     │  │  Self-   │  │  Exam    │  │  Report /  │  │   │
-│  │  │  Exam    │  │  Exam     │  │  Test    │  │  Panel   │  │  Trends /  │  │   │
-│  │  │(Create / │  │(No-Signup│  │(Calibrat)│  │(Proctore)│  │  Settings  │  │   │
-│  │  │ Share /  │  │  Flow)   │  │          │  │          │  │           │  │   │
-│  │  │ Mission  │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └─────┬─────┘  │   │
-│  │  │ Control) │       │            │             │               │         │   │
-│  │  └────┬─────┘       │            │             │               │         │   │
-│  │       │             └────────────┼─────────────┼───────────────┘         │   │
-│  │       │                          │             │                          │   │
-│  │  ┌────▼──────────────────────────▼─────────────▼──────────────────────┐  │   │
-│  │  │              Zustand Store + IndexedDB (idb)                       │  │   │
-│  │  └──────────────────────────────────┬──────────────────────────────────┘  │   │
-│  │                                     │                                     │   │
-│  │  ┌──────────────────────────────────▼──────────────────────────────────┐  │   │
-│  │  │              Detection Bridge (detection-bridge.ts)                  │  │   │
-│  │  │  ┌──────────────────────────────────────────────────────────────┐  │  │   │
-│  │  │  │              Web Worker (detection.worker.ts)                 │  │  │   │
-│  │  │  │  ┌──────────────┐  ┌───────────┐  ┌──────────────────────┐  │  │  │   │
-│  │  │  │  │  MediaPipe   │  │  solvePnP  │  │  ONNX Runtime        │  │  │  │   │
-│  │  │  │  │  FaceLandmark│─>│  + Kalman  │  │  Web (1D-CNN)        │  │  │  │   │
-│  │  │  │  │  er (WASM)   │  │  + EAR     │  │  (quantized)         │  │  │  │   │
-│  │  │  │  └──────────────┘  └───────────┘  └──────────────────────┘  │  │  │   │
-│  │  │  └──────────────────────────────────────────────────────────────┘  │  │   │
-│  │  └────────────────────────────────────────────────────────────────────┘  │   │
-│  │                                                                           │   │
-│  │  ┌──────────────────────────────┐  ┌────────────────────────────────┐   │   │
-│  │  │  WebSocket Client (ws.ts)    │  │  Host WS Client (room_handler) │   │   │
-│  │  └─────────────┬────────────────┘  └───────────────┬────────────────┘   │   │
-│  └────────────────┼──────────────────────────────────┼──────────────────────┘   │
-│                   │                                  │                          │
-└───────────────────┼──────────────────────────────────┼──────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│                              Client Browser                                          │
+│                                                                                       │
+│  ┌───────────────────────────────────────────────────────────────────────────────┐   │
+│  │                     React App (Vite + TypeScript) — v2 Neo-Brutalist UI        │   │
+│  │                                                                                │   │
+│  │  ┌─────────────┐  ┌───────────┐  ┌──────────────┐  ┌──────────┐  ┌────────┐   │   │
+│  │  │  Paper      │  │  Join     │  │  Paper       │  │  Exam    │  │  Host  │   │   │
+│  │  │  Builder    │  │  Exam     │  │  Drafting    │  │  Panel   │  │  Dash- │   │   │
+│  │  │  (/builder) │  │(No-Signup)│  │  (AI Draft)  │  │(Proctore)│  │  board  │   │   │
+│  │  │  + Templates│  │  Flow)    │  │  + Templates │  │          │  │(Mission │   │   │
+│  │  └──────┬──────┘  └────┬─────┘  └──────┬───────┘  └────┬─────┘  │ Control)│   │   │
+│  │         │              │               │              │        └────┬─────┘   │   │
+│  │         │              └───────────────┼──────────────┼────────────┘          │   │
+│  │  ┌──────▼──────────────────────────────▼──────────────▼─────────────────────┐ │   │
+│  │  │              Zustand Store + IndexedDB (idb) + i18n (Hindi/English)       │ │   │
+│  │  └──────────────────────────────────┬────────────────────────────────────────┘ │   │
+│  │                                     │                                           │   │
+│  │  ┌──────────────────────────────────▼────────────────────────────────────────┐ │   │
+│  │  │              Detection Bridge (detection-bridge.ts)                        │ │   │
+│  │  │  ┌────────────────────────────────────────────────────────────────────┐  │ │   │
+│  │  │  │              Web Worker (detection.worker.ts)                       │  │ │   │
+│  │  │  │  ┌──────────────┐  ┌───────────┐  ┌──────────────────────────┐   │  │ │   │
+│  │  │  │  │  MediaPipe   │  │  solvePnP  │  │  ONNX Runtime            │   │  │ │   │
+│  │  │  │  │  FaceLandmark│─>│  + Kalman  │  │  Web (1D-CNN quantized)  │   │  │ │   │
+│  │  │  │  │  er (WASM)   │  │  + EAR     │  │  541 KB                  │   │  │ │   │
+│  │  │  │  └──────────────┘  └───────────┘  └──────────────────────────┘   │  │ │   │
+│  │  │  └────────────────────────────────────────────────────────────────────┘  │ │   │
+│  │  └──────────────────────────────────────────────────────────────────────────┘ │   │
+│  │                                                                                │   │
+│  │  ┌──────────────────────────────┐  ┌────────────────────────────────────┐    │   │
+│  │  │  WebSocket Client (ws.ts)    │  │  Host WS + Cohort WS               │    │   │
+│  │  └─────────────┬────────────────┘  └───────────────┬────────────────────┘    │   │
+│  └────────────────┼──────────────────────────────────┼──────────────────────────┘   │
+│                   │                                  │                              │
+└───────────────────┼──────────────────────────────────┼──────────────────────────────┘
                     │ WebSocket / HTTP                 │
-┌───────────────────┼──────────────────────────────────┼──────────────────────────┐
-│                   │                                  │                          │
-│  ┌───────────────▼──────────────────────────────────▼──────────────────────┐   │
-│  │                          FastAPI Backend (Python)                        │   │
-│  │                                                                          │   │
-│  │  ┌──────────────┐  ┌───────────────┐  ┌─────────────┐  ┌────────────┐   │   │
-│  │  │  REST API    │  │  WebSocket    │  │  Session    │  │  Report    │   │   │
-│  │  │  /health     │  │  /ws/{id}     │  │  Store      │  │  Gen       │   │   │
-│  │  │  /api/session│  │  /ws/room/{id}│  │  (InMemory) │  │  (PDF +    │   │   │
-│  │  │  /api/verify │  │               │  │             │  │  Sign)     │   │   │
-│  │  │  /api/rooms  │  │               │  │             │  │            │   │   │
-│  │  │  (create,    │  │               │  │             │  │            │   │   │
-│  │  │  close,      │  │               │  │             │  │            │   │   │
-│  │  │  reports)    │  │               │  │             │  │            │   │   │
-│  │  └──────────────┘  └───────────────┘  └─────────────┘  └────────────┘   │   │
-│  │                                                                          │   │
-│  │  ┌──────────────────────────────────────────────────────────────────┐   │   │
-│  │  │  Room Store (InMemoryRoomStore)                                  │   │   │
-│  │  │  - Host-token auth (constant-time)                              │   │   │
-│  │  │  - Max participants enforcement                                 │   │   │
-│  │  │  - Duration-based auto-close (background cleanup)                │   │   │
-│  │  │  - Per-app rate limiting (room creation: 10/hr, join: 20/min)   │   │   │
-│  │  └──────────────────────────────────────────────────────────────────┘   │   │
-│  └──────────────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────┼──────────────────────────────────┼──────────────────────────────┐
+│                   │                                  │                              │
+│  ┌───────────────▼──────────────────────────────────▼──────────────────────────┐   │
+│  │                          FastAPI Backend (Python)                            │   │
+│  │                                                                              │   │
+│  │  ┌──────────────┐  ┌───────────────┐  ┌─────────────┐  ┌────────────────┐   │   │
+│  │  │  REST API    │  │  WebSocket    │  │  Session    │  │  Report        │   │   │
+│  │  │  /health     │  │  /ws/{id}     │  │  Store      │  │  Gen (PDF +    │   │   │
+│  │  │  /api/session│  │  /ws/room/{id}│  │  (InMemory) │  │  SHA-256 HMAC) │   │   │
+│  │  │  /api/verify │  │               │  │             │  │                │   │   │
+│  │  │  /api/rooms  │  │               │  │             │  │                │   │   │
+│  │  │  (create,    │  │               │  │             │  │                │   │   │
+│  │  │  close,      │  │               │  │             │  │                │   │   │
+│  │  │  reports)    │  │               │  │             │  │                │   │   │
+│  │  └──────────────┘  └───────────────┘  └─────────────┘  └────────────────┘   │   │
+│  │                                                                              │   │
+│  │  ┌──────────────────────────────────────────────────────────────────────┐   │   │
+│  │  │  Room Store (InMemoryRoomStore)                                      │   │   │
+│  │  │  - Host-token auth (constant-time verification)                      │   │   │
+│  │  │  - Max participants enforcement                                      │   │   │
+│  │  │  - Duration-based auto-close (background cleanup task)               │   │   │
+│  │  │  - Per-app rate limiting (room creation: 10/hr, join: 20/min)        │   │   │
+│  │  └──────────────────────────────────────────────────────────────────────┘   │   │
+│  └──────────────────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+## New in v2
+
+### StampedSeal — The Signature Element
+A circular SVG seal with a concentric waveform ring driven by the model's real confidence score. Used across the product:
+- **Marketing**: static Stamp-Red seal on Paper, feels pressed onto the page
+- **Live dashboard**: tick-ring plots real confidence in signal colors; red flare on violation
+- **PDF report**: SERVER-VERIFIED (Ledger Green) or LOCAL DRAFT (Graphite) based on HMAC check
+
+### Paper Builder
+The new `/builder` route provides a three-column exam-creation interface:
+- **Left**: Searchable question bank with filter by topic/difficulty, AI Paper Drafting, Template Gallery
+- **Center**: Paper canvas with section tabs, drag-reorder questions, metadata controls
+- **Right**: Live mark summary with per-section and per-type breakdowns
+
+### i18n (Hindi/English)
+A `useLang` Zustand store provides instant language switching. The toggle appears on the landing page hero.
+
+### Neo-Brutalist Design Tokens
+All visual tokens (colors, fonts, shadows, borders) are defined in a single source of truth:
+- `frontend/src/styles/tokens.css` — CSS custom properties
+- `frontend/tailwind.config.js` — Tailwind theme extensions
+- `frontend/src/styles/globals.css` — Brutalist utility classes, animations, reduced-motion support
+
+## Routes (v2)
+
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | LandingScreen | Marketing hero with Vapour Text headline, 3D Robot, feature grid, stats strip |
+| `/builder` | PaperBuilderPage | Three-column exam builder with question bank, canvas, and summary |
+| `/host` | HostFlow (create) | Create a new exam room |
+| `/host/{room_id}` | HostDashboard | Mission Control with member grid and live StampedSeals |
+| `/join/{room_id}` | JoinExam | Participant join — name entry, room info, no signup |
+| `/cohort/{room_id}` | CohortDashboard | Live pulse wall of StampedSeals |
+| `/model` | ModelTrainingPage | Training curves, cross-validation table, Model Card |
+| `/styleguide` | Styleguide | Design system reference (colors, type, buttons, forms, table) |
 
 ## Key Design Decisions
 
@@ -201,6 +235,18 @@ MediaPipe's face landmark model has documented ~8-12% lower detection rates for 
 ```
 
 ### Deploy Steps
+
+#### Docker (local development / self-hosted)
+
+```bash
+docker compose up --build
+```
+
+Starts:
+- **Backend** at `http://localhost:8000`
+- **Frontend** (nginx) at `http://localhost:3000`
+
+#### Production (Vercel + Render/Railway)
 
 1. **Backend** (Render / Railway):
    - Set build command: `pip install -r backend/requirements.txt`

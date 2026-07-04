@@ -17,10 +17,10 @@ interface AttentionChartProps {
 const CHART_THEME = {
   grid: 'var(--hairline)',
   text: 'var(--ink-faint)',
-  jade: '#0E6B5C',
-  ochre: '#B8763A',
-  plum: '#6B5178',
-  clay: '#A63D2F',
+  jade: '#3E8E7E',
+  ochre: '#B57A1E',
+  plum: '#A8556E',
+  clay: '#9B2D20',
 };
 
 function formatTick(ts: number): string {
@@ -68,14 +68,14 @@ export function AttentionChart({ data }: AttentionChartProps) {
             dataKey="timestamp"
             tickFormatter={formatTick}
             stroke={CHART_THEME.text}
-            tick={{ fontSize: 10, fontFamily: "'Martian Mono Variable', 'JetBrains Mono', monospace" }}
+            tick={{ fontSize: 10, fontFamily: "'Space Mono', ui-monospace, monospace" }}
             interval="preserveStartEnd"
             minTickGap={40}
           />
           <YAxis
             domain={[0, 100]}
             stroke={CHART_THEME.text}
-            tick={{ fontSize: 10, fontFamily: "'Martian Mono Variable', 'JetBrains Mono', monospace" }}
+            tick={{ fontSize: 10, fontFamily: "'Space Mono', ui-monospace, monospace" }}
             tickCount={5}
           />
           <Tooltip
@@ -84,7 +84,7 @@ export function AttentionChart({ data }: AttentionChartProps) {
               border: '1px solid var(--hairline-strong)',
               borderRadius: '8px',
               fontSize: '12px',
-              fontFamily: "'Martian Mono Variable', 'JetBrains Mono', monospace",
+              fontFamily: "'Space Mono', ui-monospace, monospace",
               color: 'var(--ink)',
               boxShadow: 'var(--shadow-md)',
             }}

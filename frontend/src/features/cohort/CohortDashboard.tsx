@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { ApertureGauge } from '../../components/ui/ApertureGauge';
-import { StatusPill, type StatusState } from '../../components/ui/StatusPill';
-import { Copy, Users } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from "react";
+import { StampedSeal } from "../../components/ui/stamped-seal";
+import { StatusPill, type StatusState } from "../../components/ui/StatusPill";
+import { Copy, Users, Stamp } from "lucide-react";
 
 interface RoomMember {
   session_id: string;
@@ -19,7 +19,7 @@ interface CohortDashboardProps {
 function formatDuration(s: number): string {
   const m = Math.floor(s / 60);
   const sec = s % 60;
-  return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
 export function CohortDashboard({ roomId }: CohortDashboardProps) {
@@ -28,10 +28,10 @@ export function CohortDashboard({ roomId }: CohortDashboardProps) {
   const [copied, setCopied] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+  const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
   useEffect(() => {
-    const wsUrl = API_BASE.replace(/^http/, 'ws');
+    const wsUrl = API_BASE.replace(/^http/, "ws");
     const ws = new WebSocket(`${wsUrl}/ws/room/${roomId}`);
     wsRef.current = ws;
 
@@ -42,7 +42,7 @@ export function CohortDashboard({ roomId }: CohortDashboardProps) {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'room_update') {
+        if (msg.type === "room_update") {
           setMembers(msg.members ?? []);
         }
       } catch { /* noop */ }
@@ -64,53 +64,55 @@ export function CohortDashboard({ roomId }: CohortDashboardProps) {
   const sorted = [...members].sort((a, b) => a.score - b.score);
 
   return (
-    <div className="flex h-full w-full flex-col" style={{ backgroundColor: 'var(--surface-0)' }}>
-      <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--hairline)' }}>
+    <div className="flex h-full w-full flex-col bg-ink-slate text-paper">
+      {/* HEADER */}
+      <div className="flex items-center justify-between border-b-[3px] border-paper px-6 py-4">
         <div className="flex items-center gap-3">
-          <Users size={20} style={{ color: 'var(--jade)' }} />
-          <h1 className="font-display text-lg uppercase tracking-[0.08em]" style={{ color: 'var(--ink)' }}>
-            Cohort Dashboard
+          <Stamp size={20} className="text-stamp" />
+          <h1 className="font-display text-lg uppercase tracking-[0.08em] text-paper">
+            Cohort Wall
           </h1>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[22px] tabular-nums tracking-wider" style={{ color: 'var(--jade)' }}>
+            <span className="font-mono text-xl text-ledger">
               {roomId}
             </span>
-<button
-  onClick={handleCopy}
-  className="rounded-md p-1.5 transition-colors"
-  style={{ backgroundColor: 'var(--surface-1)', color: 'var(--ink-muted)' }}
-  title="Copy room code"
-  aria-label="Copy room code"
->
+            <button
+              onClick={handleCopy}
+              className="border-[2px] border-paper p-1.5 text-paper-2 hover:text-paper"
+              title="Copy room code"
+              aria-label="Copy room code"
+            >
               <Copy size={14} />
             </button>
             {copied && (
-              <span className="font-sans text-[10px]" style={{ color: 'var(--jade)' }}>Copied!</span>
+              <span className="font-body text-xs text-ledger">Copied!</span>
             )}
           </div>
-          <span className="flex items-center gap-1.5 font-sans text-[11px]"
-            style={{ color: connected ? 'var(--jade)' : 'var(--ink-faint)' }}>
-            <span className="h-1.5 w-1.5 rounded-full"
-              style={{ backgroundColor: connected ? 'var(--jade)' : 'var(--ink-faint)' }}
-            />
-            {connected ? `${members.length} connected` : 'Disconnected'}
+          <span className={`flex items-center gap-1.5 font-label text-label ${
+            connected ? "text-ledger" : "text-graphite"
+          }`}>
+            <span className={`h-1.5 w-1.5 ${
+              connected ? "bg-ledger" : "bg-graphite"
+            }`} />
+            {connected ? `${members.length} connected` : "Disconnected"}
           </span>
         </div>
       </div>
 
+      {/* MEMBER PULSE WALL */}
       <div className="flex-1 overflow-y-auto p-6">
         {sorted.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-4">
-            <Users size={48} style={{ color: 'var(--ink-faint)', opacity: 0.3 }} />
-            <span className="font-display text-xl uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
+            <Users size={48} className="text-graphite opacity-40" />
+            <span className="font-display text-xl uppercase text-graphite">
               Waiting for students
             </span>
-            <span className="font-mono text-sm" style={{ color: 'var(--jade)' }}>
+            <span className="font-mono text-sm text-ledger">
               Share code: {roomId}
             </span>
-            <p className="max-w-md text-center font-sans text-[12px]" style={{ color: 'var(--ink-faint)' }}>
+            <p className="max-w-md text-center font-body text-xs text-graphite">
               Students enter this room code on the Landing panel to join.
               Their score and state (not video) will appear here.
             </p>
@@ -118,32 +120,29 @@ export function CohortDashboard({ roomId }: CohortDashboardProps) {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {sorted.map((m) => {
-              const openness = Math.max(0.05, m.score / 100);
+              const isAbsent = m.current_state === "absent" || m.current_state === "multi";
               return (
                 <div
                   key={m.session_id}
-                  className="rounded-xl p-4 flex flex-col items-center gap-2"
-                  style={{
-                    backgroundColor: 'var(--surface-1)',
-                    border: '1px solid var(--hairline)',
-                  }}
+                  className={`flex flex-col items-center gap-3 border-[3px] p-4 ${
+                    isAbsent ? "border-stamp shadow-brutal-red" : "border-paper shadow-brutal-paper"
+                  } bg-ink`}
                 >
-                  <div className="w-20">
-                    <ApertureGauge openness={openness} size={80} />
-                  </div>
+                  <StampedSeal
+                    confidence={Math.max(0.01, m.score / 100)}
+                    violation={isAbsent}
+                    size={100}
+                    label={m.current_state}
+                  />
                   <StatusPill state={m.current_state as StatusState} />
-                  <span className="font-sans text-sm font-medium" style={{ color: 'var(--ink)' }}>
+                  <span className="font-body text-sm font-medium text-paper">
                     {m.display_name}
                   </span>
-                  <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--ink-faint)' }}>
-                    <span className="font-mono tabular-nums">
-                      Score: {m.score}
-                    </span>
-                    <span className="font-mono tabular-nums">
-                      {formatDuration(m.elapsed_seconds)}
-                    </span>
+                  <div className="flex items-center gap-3 text-xs text-graphite">
+                    <span className="font-mono">Score: {m.score}</span>
+                    <span className="font-mono">{formatDuration(m.elapsed_seconds)}</span>
                   </div>
-                  <span className="font-mono text-[10px] tabular-nums" style={{ color: 'var(--ink-faint)' }}>
+                  <span className="font-mono text-xs text-graphite">
                     {m.event_count} events
                   </span>
                 </div>
@@ -153,7 +152,7 @@ export function CohortDashboard({ roomId }: CohortDashboardProps) {
         )}
       </div>
 
-      <div className="px-6 py-2 text-center font-sans text-[10px]" style={{ borderTop: '1px solid var(--hairline)', color: 'var(--ink-faint)' }}>
+      <div className="border-t-[3px] border-paper px-6 py-2 text-center font-body text-xs text-graphite">
         Only score and state are broadcast — no video, image, or landmark data leaves student devices.
       </div>
     </div>

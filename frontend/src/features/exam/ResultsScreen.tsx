@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { QUESTIONS } from './questions';
 import type { ExamAnswer, ProctorEvent } from './types';
 import {
@@ -8,7 +7,8 @@ import {
   computeVerdict,
 } from './types';
 import { Check, X, Download, RotateCcw, ShieldCheck, ShieldAlert } from 'lucide-react';
-import { ApertureGauge } from '../../components/ui/ApertureGauge';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent } from '../../components/ui/card';
 
 interface ResultsScreenProps {
   answers: ExamAnswer[];
@@ -23,10 +23,10 @@ interface ResultsScreenProps {
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
 
-const VERDICT_STYLES: Record<string, { label: string; color: string; bgColor: string }> = {
-  pass: { label: 'PASS', color: 'var(--jade)', bgColor: 'rgba(14,107,92,0.12)' },
-  investigate: { label: 'REVIEW', color: 'var(--ochre)', bgColor: 'rgba(185,118,58,0.12)' },
-  fail: { label: 'FLAGGED', color: 'var(--clay)', bgColor: 'rgba(166,61,47,0.12)' },
+const VERDICT_STYLES: Record<string, { label: string; borderColor: string; textColor: string }> = {
+  pass: { label: 'PASS', borderColor: 'border-ledger', textColor: 'text-ledger' },
+  investigate: { label: 'REVIEW', borderColor: 'border-ochre', textColor: 'text-ochre' },
+  fail: { label: 'FLAGGED', borderColor: 'border-ochre', textColor: 'text-ochre' },
 };
 
 function topicLabel(answers: ExamAnswer[]): { topic: string; correct: number; total: number }[] {
@@ -52,7 +52,6 @@ export function ResultsScreen({
   onDownloadReport,
   onRetake,
 }: ResultsScreenProps) {
-  const [showVerdict, setShowVerdict] = useState(false);
   const [showContent, setShowContent] = useState(false);
 
   const correctCount = answers.filter((a) => {
@@ -61,13 +60,11 @@ export function ResultsScreen({
   }).length;
 
   const totalQuestions = QUESTIONS.length;
-  const pct = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
   const proctorIQ = computeProctorIQ(correctCount, totalQuestions, events);
   const verdict = computeVerdict(proctorIQ);
   const integrityScoreValue = computeIntegrityScore(events);
   const examScorePct = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
   const topics = useMemo(() => topicLabel(answers), [answers]);
-  const openness = Math.max(0.05, proctorIQ / 100);
   const verdictStyle = VERDICT_STYLES[verdict] ?? VERDICT_STYLES.pass;
 
   const eventCounts = useMemo(() => {
@@ -79,78 +76,45 @@ export function ResultsScreen({
   }, [events]);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setShowVerdict(true), 600);
-    const t2 = setTimeout(() => setShowContent(true), 900);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    const t = setTimeout(() => setShowContent(true), 600);
+    return () => clearTimeout(t);
   }, []);
 
-  const progressColor = pct >= 80 ? 'var(--jade)' : pct >= 50 ? 'var(--ochre)' : 'var(--clay)';
-
   return (
-    <div className="flex h-full w-full gap-0 lg:gap-6 overflow-y-auto" style={{ backgroundColor: 'var(--surface-0)' }}>
-      <motion.div
-        className="flex w-full flex-col gap-6 lg:w-[60%] p-6"
-        initial={{ opacity: 0, x: -24 }}
-        animate={showContent ? { opacity: 1, x: 0 } : { opacity: 0, x: -24 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-      >
+    <div className={`flex h-full w-full gap-0 lg:gap-6 overflow-y-auto bg-paper ${showContent ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
+      <div className="flex w-full flex-col gap-6 lg:w-[60%] p-6">
         <div className="flex flex-col items-center gap-6 pt-4">
-          <div className="relative flex flex-col items-center">
-            <ApertureGauge openness={openness} score={proctorIQ} size={200} showScore />
-            <AnimatePresence>
-              {showVerdict && (
-                <motion.div
-                  className="mt-4 flex flex-col items-center gap-1"
-                  initial={{ opacity: 0, scale: 0.5 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, ease: 'easeOut', type: 'spring', stiffness: 100, damping: 15 }}
-                >
-                  <span
-                    className="font-display text-[clamp(1.5rem,5vw,2.5rem)] uppercase tracking-[0.08em] px-6 py-2 rounded-full"
-                    style={{
-                      color: verdictStyle.color,
-                      backgroundColor: verdictStyle.bgColor,
-                    }}
-                  >
-                    {verdictStyle.label}
-                  </span>
-                  <span className="font-sans text-xs" style={{ color: 'var(--ink-muted)' }}>
-                    ProctorIQ Score (exam + integrity)
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <div className="flex flex-col items-center">
+            <div className={`border-[4px] px-8 py-3 shadow-brutal-lg ${verdictStyle.borderColor} bg-paper stamp-in`}>
+              <span className={`font-display text-4xl uppercase tracking-[0.08em] ${verdictStyle.textColor}`}>
+                {verdictStyle.label}
+              </span>
+            </div>
+            <span className="font-body text-xs text-graphite mt-2">
+              ProctorIQ Score (exam + integrity): {Math.round(proctorIQ)}
+            </span>
           </div>
         </div>
 
         <div>
-          <h3 className="font-sans text-sm uppercase tracking-[0.1em] mb-3" style={{ color: 'var(--ink-muted)' }}>
-            Question Breakdown
-          </h3>
+          <span className="chip">Question Breakdown</span>
+          <h3 className="font-display text-2xl uppercase mt-2 mb-4">Questions</h3>
           <div className="flex flex-col gap-1.5">
             {QUESTIONS.map((q) => {
               const a = answers.find((aa) => aa.questionId === q.id);
               const isCorrect = a?.selectedIndex === q.correctIndex;
               const isUnanswered = a?.selectedIndex === null;
               return (
-                <div
-                  key={q.id}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2"
-                  style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}
-                >
-                  <span
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[11px] tabular-nums"
-                    style={{
-                      backgroundColor: isCorrect ? 'rgba(14,107,92,0.2)' : isUnanswered ? 'var(--hairline)' : 'rgba(166,61,47,0.2)',
-                      color: isCorrect ? 'var(--jade)' : isUnanswered ? 'var(--ink-faint)' : 'var(--clay)',
-                    }}
-                  >
+                <div key={q.id} className="flex items-center gap-3 border-[2px] border-ink px-3 py-2 bg-paper-2">
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center border-[2px] border-ink font-mono text-xs ${
+                    isCorrect ? 'bg-ledger text-paper' : isUnanswered ? 'bg-paper text-graphite' : 'bg-ochre text-ink'
+                  }`}>
                     {isCorrect ? <Check size={12} /> : isUnanswered ? '--' : <X size={12} />}
                   </span>
-                  <span className="flex-1 truncate font-sans text-sm" style={{ color: 'var(--ink)' }}>
+                  <span className="flex-1 truncate font-body text-sm text-ink">
                     {q.question}
                   </span>
-                  <span className="font-mono text-[11px] tabular-nums shrink-0" style={{ color: 'var(--ink-faint)' }}>
+                  <span className="font-mono text-xs text-graphite shrink-0">
                     {OPTION_LABELS[q.correctIndex]}
                   </span>
                 </div>
@@ -160,145 +124,101 @@ export function ResultsScreen({
         </div>
 
         <div>
-          <h3 className="font-sans text-sm uppercase tracking-[0.1em] mb-3" style={{ color: 'var(--ink-muted)' }}>
-            Topic Performance
-          </h3>
+          <span className="chip">Topic Performance</span>
+          <h3 className="font-display text-2xl uppercase mt-2 mb-4">By Topic</h3>
           <div className="flex flex-col gap-2">
             {topics.map((t) => {
               const tpct = t.total > 0 ? Math.round((t.correct / t.total) * 100) : 0;
               return (
                 <div key={t.topic} className="flex items-center gap-3">
-                  <span className="w-20 font-sans text-sm uppercase" style={{ color: 'var(--ink)' }}>
-                    {t.topic}
-                  </span>
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--hairline)' }}>
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ backgroundColor: progressColor }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${tpct}%` }}
-                      transition={{ duration: 0.8, ease: 'easeOut' }}
-                    />
+                  <span className="w-20 font-label text-label text-graphite">{t.topic}</span>
+                  <div className="flex-1 h-3 border-[2px] border-ink bg-paper overflow-hidden">
+                    <div className={`h-full ${tpct >= 80 ? 'bg-ledger' : 'bg-ochre'}`} style={{ width: `${tpct}%` }} />
                   </div>
-                  <span className="font-mono text-sm tabular-nums w-8 text-right" style={{ color: 'var(--ink-muted)' }}>
-                    {tpct}%
-                  </span>
+                  <span className="font-mono text-sm tabular-nums w-8 text-right text-ink">{tpct}%</span>
                 </div>
               );
             })}
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      <motion.div
-        className="flex w-full flex-col gap-5 lg:w-[40%] p-6"
-        style={{ borderTop: 'none', borderLeft: '1px solid var(--hairline)' }}
-        initial={{ opacity: 0, x: 24 }}
-        animate={showContent ? { opacity: 1, x: 0 } : { opacity: 0, x: 24 }}
-        transition={{ duration: 0.5, ease: 'easeOut', delay: 0.15 }}
-      >
-        <div className="flex justify-around rounded-xl p-3" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-md)', borderTop: '1px solid var(--edge-highlight)' }}>
-          <div className="text-center">
-            <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
-              {integrityScoreValue}
-            </div>
-            <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
-              Integrity
-            </div>
+      <div className="flex w-full flex-col gap-5 lg:w-[40%] p-6 border-l-[3px] border-ink">
+        <div className="border-[3px] border-ink bg-paper-2 p-4 grid grid-cols-3 gap-4 text-center">
+          <div>
+            <div className="font-mono text-data-lg font-bold text-ink">{integrityScoreValue}</div>
+            <div className="font-label text-label text-graphite">Integrity</div>
           </div>
-          <div className="text-center">
-            <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
-              {events.length}
-            </div>
-            <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
-              Events
-            </div>
+          <div>
+            <div className="font-mono text-data-lg font-bold text-ink">{events.length}</div>
+            <div className="font-label text-label text-graphite">Events</div>
           </div>
-          <div className="text-center">
-            <div className="font-mono text-lg tabular-nums" style={{ color: 'var(--ink)' }}>
-              {examScorePct}%
-            </div>
-            <div className="font-sans text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
-              Exam
-            </div>
+          <div>
+            <div className="font-mono text-data-lg font-bold text-ink">{examScorePct}%</div>
+            <div className="font-label text-label text-graphite">Exam</div>
           </div>
         </div>
 
-        <div>
-          <h3 className="font-sans text-sm uppercase tracking-[0.1em] mb-2" style={{ color: 'var(--ink-muted)' }}>
-            Event Summary
-          </h3>
-          <div className="flex flex-col gap-1">
-            {Object.entries(eventCounts).map(([type, count]) => (
-              <div key={type} className="flex justify-between rounded px-3 py-1.5" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
-                <span className="font-sans text-sm capitalize" style={{ color: 'var(--ink)' }}>
-                  {type.replace(/_/g, ' ')}
-                </span>
-                <span className="font-mono text-sm tabular-nums" style={{ color: 'var(--ink-muted)' }}>
-                  {count}
-                </span>
-              </div>
-            ))}
-            {events.length === 0 && (
-              <span className="font-sans text-sm italic" style={{ color: 'var(--ink-faint)' }}>
-                No proctor events recorded
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="font-sans text-sm uppercase tracking-[0.1em] mb-2" style={{ color: 'var(--ink-muted)' }}>
-            Timeline
-          </h3>
-          <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
-            {events.length === 0 ? (
-              <span className="font-sans text-sm italic" style={{ color: 'var(--ink-faint)' }}>
-                No events
-              </span>
+        <Card>
+          <CardContent className="p-4 grid gap-2">
+            <span className="chip">Event Summary</span>
+            {Object.entries(eventCounts).length === 0 ? (
+              <span className="font-body text-sm text-graphite italic">No proctor events recorded</span>
             ) : (
-              events.map((e, i) => (
-                <div key={`ev-${i}`} className="flex items-center gap-2 rounded px-3 py-1" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: 'var(--ochre)' }} />
-                  <span className="flex-1 font-sans text-sm capitalize" style={{ color: 'var(--ink)' }}>
-                    {e.type.replace(/_/g, ' ')}
-                  </span>
-                  <span className="font-mono text-[11px] tabular-nums" style={{ color: 'var(--ink-faint)' }}>
-                    {new Date(e.timestamp).toLocaleTimeString()}
-                  </span>
+              Object.entries(eventCounts).map(([type, count]) => (
+                <div key={type} className="flex justify-between border-[2px] border-ink bg-paper-2 px-3 py-1.5">
+                  <span className="font-body text-sm text-ink capitalize">{type.replace(/_/g, ' ')}</span>
+                  <span className="font-mono text-sm text-graphite">{count}</span>
                 </div>
               ))
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-xl px-3 py-2" style={{ backgroundColor: 'var(--surface-1)', boxShadow: 'var(--shadow-sm)', borderTop: '1px solid var(--edge-highlight)' }}>
-          <div className="font-sans text-[10px] uppercase tracking-[0.1em] mb-1" style={{ color: 'var(--ink-faint)' }}>
-            Report Hash (SHA-256)
-          </div>
+        <Card>
+          <CardContent className="p-4 grid gap-2">
+            <span className="chip">Timeline</span>
+            <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
+              {events.length === 0 ? (
+                <span className="font-body text-sm text-graphite italic">No events</span>
+              ) : (
+                events.map((e, i) => (
+                  <div key={`ev-${i}`} className="flex items-center gap-2 border-[2px] border-ink px-3 py-1">
+                    <span className="h-1.5 w-1.5 shrink-0 bg-ochre" />
+                    <span className="flex-1 font-body text-sm text-ink capitalize">{e.type.replace(/_/g, ' ')}</span>
+                    <span className="font-mono text-xs text-graphite">
+                      {new Date(e.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="border-[3px] border-ink bg-paper p-4">
+          <span className="chip mb-2 block">Report Hash (SHA-256)</span>
           {hashLoading ? (
             <div className="flex items-center gap-2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2" style={{ borderColor: 'var(--cobalt)', borderTopColor: 'transparent' }} />
-              <span className="font-sans text-[12px] italic" style={{ color: 'var(--ink-muted)' }}>
-                Verifying...
-              </span>
+              <div className="h-4 w-4 border-[3px] border-ledger border-t-transparent animate-spin" />
+              <span className="font-body text-xs text-graphite italic">Verifying...</span>
             </div>
           ) : (
             <>
               <div className="flex items-center gap-1 mb-1">
                 {serverVerified ? (
-                  <span className="flex items-center gap-1 font-sans text-[10px]" style={{ color: 'var(--gold)' }}>
+                  <span className="flex items-center gap-1 font-label text-label text-ledger">
                     <ShieldCheck size={12} />
                     Server-Verified
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 font-sans text-[10px]" style={{ color: 'var(--ochre)' }}>
+                  <span className="flex items-center gap-1 font-label text-label text-ochre">
                     <ShieldAlert size={12} />
-                    Local Draft — Not Server Verified
+                    Local Draft
                   </span>
                 )}
               </div>
-              <div className="font-mono text-[11px] break-all tabular-nums" style={{ color: 'var(--cobalt)' }}>
+              <div className="font-mono text-xs break-all text-graphite">
                 {reportHash || 'computing...'}
               </div>
             </>
@@ -306,34 +226,16 @@ export function ResultsScreen({
         </div>
 
         <div className="flex gap-3 mt-auto">
-          <button
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 font-sans text-sm uppercase tracking-[0.1em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
-            style={{
-              backgroundColor: 'rgba(46,76,140,0.12)',
-              color: 'var(--cobalt)',
-            }}
-            onClick={onDownloadReport}
-            aria-label="Download report"
-          >
+          <Button variant="default" onClick={onDownloadReport} className="flex-1">
             <Download size={16} />
             Download
-          </button>
-          <button
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 font-sans text-sm uppercase tracking-[0.1em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
-            style={{
-              backgroundColor: 'var(--surface-1)',
-              color: 'var(--ink)',
-              boxShadow: 'var(--shadow-sm)',
-              borderTop: '1px solid var(--edge-highlight)',
-            }}
-            onClick={onRetake}
-            aria-label="Take another exam"
-          >
+          </Button>
+          <Button variant="ghost" onClick={onRetake} className="flex-1">
             <RotateCcw size={16} />
             Retake
-          </button>
+          </Button>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

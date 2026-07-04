@@ -17,18 +17,18 @@ const SPROCKET_R = 3;
 const SPROCKET_GAP = 8;
 
 const EVENT_COLORS: Record<string, string> = {
-  focused: '#0E6B5C',
-  distracted: '#B8763A',
-  absent: '#A63D2F',
-  drowsy: '#6B5178',
-  multi: '#A63D2F',
-  tab_switch: '#B8763A',
-  window_blur: '#B8763A',
-  gaze_away: '#B8763A',
+  focused: '#3E8E7E',
+  distracted: '#B57A1E',
+  absent: '#9B2D20',
+  drowsy: '#A8556E',
+  multi: '#9B2D20',
+  tab_switch: '#C08A2E',
+  window_blur: '#C08A2E',
+  gaze_away: '#3E8E7E',
 };
 
 function eventColor(eventType: string): string {
-  return EVENT_COLORS[eventType] ?? '#9CA3A5';
+  return EVENT_COLORS[eventType] ?? '#6B6E74';
 }
 
 export function TimelineScrubber({ durationSec, events, onScrub }: TimelineScrubberProps) {
@@ -139,7 +139,7 @@ export function TimelineScrubber({ durationSec, events, onScrub }: TimelineScrub
             backgroundColor: 'var(--surface-2)',
             border: '1px solid var(--hairline-strong)',
             color: 'var(--ink)',
-            fontFamily: "'Martian Mono Variable', 'JetBrains Mono', monospace",
+            fontFamily: "'Space Mono', ui-monospace, monospace",
             fontSize: '11px',
           }}
           aria-live="polite"

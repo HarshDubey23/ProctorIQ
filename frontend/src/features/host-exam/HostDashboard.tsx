@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   Users, Wifi, WifiOff, Download, XCircle, AlertTriangle,
-  Search, UserX
-} from 'lucide-react';
-import { StatusPill, type StatusState } from '../../components/ui/StatusPill';
-import { AttentionChart } from '../dashboard/AttentionChart';
-import type { AttentionSample } from '../dashboard/useSession';
+  Search, UserX, Stamp
+} from "lucide-react";
+import { StatusPill, type StatusState } from "../../components/ui/StatusPill";
+import { AttentionChart } from "../dashboard/AttentionChart";
+import type { AttentionSample } from "../dashboard/useSession";
+
+import { StampedSeal } from "../../components/ui/stamped-seal";
 
 interface RoomMember {
   session_id: string;
@@ -21,28 +22,12 @@ interface MemberAttentionHistory {
   [sessionId: string]: AttentionSample[];
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
-
-const STATE_COLORS: Record<string, string> = {
-  focused: 'var(--jade)',
-  distracted: 'var(--ochre)',
-  absent: 'var(--clay)',
-  drowsy: 'var(--plum)',
-  multi: 'var(--clay)',
-  waiting: 'var(--cobalt)',
-};
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 function formatDuration(s: number): string {
   const m = Math.floor(s / 60);
   const sec = s % 60;
-  return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-}
-
-function getConnectionStatus(ws: WebSocket | null): 'live' | 'reconnecting' | 'offline' {
-  if (!ws) return 'offline';
-  if (ws.readyState === WebSocket.OPEN) return 'live';
-  if (ws.readyState === WebSocket.CONNECTING) return 'reconnecting';
-  return 'offline';
+  return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
 interface HostDashboardProps {
@@ -51,9 +36,9 @@ interface HostDashboardProps {
 
 export function HostDashboard({ roomId }: HostDashboardProps) {
   const [members, setMembers] = useState<RoomMember[]>([]);
-  const [wsStatus, setWsStatus] = useState<'live' | 'reconnecting' | 'offline'>('offline');
+  const [wsStatus, setWsStatus] = useState<"live" | "reconnecting" | "offline">("offline");
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [closing, setClosing] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [closed, setClosed] = useState(false);
@@ -72,27 +57,25 @@ export function HostDashboard({ roomId }: HostDashboardProps) {
           const data = await resp.json();
           setMembers(data.members ?? []);
         }
-      } catch (e) {
-        console.error('Polling error:', e);
-      }
+      } catch { /* noop */ }
     };
 
     fetchMembers();
     const pollInterval = setInterval(fetchMembers, 5000);
 
-    const wsUrl = API_BASE.replace(/^http/, 'ws');
+    const wsUrl = API_BASE.replace(/^http/, "ws");
     const ws = new WebSocket(`${wsUrl}/ws/room/${roomId}`);
     wsRef.current = ws;
-    setWsStatus('reconnecting');
+    setWsStatus("reconnecting");
 
-    ws.onopen = () => setWsStatus('live');
-    ws.onclose = () => setWsStatus('offline');
-    ws.onerror = () => setWsStatus(getConnectionStatus(ws));
+    ws.onopen = () => setWsStatus("live");
+    ws.onclose = () => setWsStatus("offline");
+    ws.onerror = () => setWsStatus("offline");
 
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'room_update') {
+        if (msg.type === "room_update") {
           const newMembers: RoomMember[] = msg.members ?? [];
           setMembers(newMembers);
 
@@ -119,12 +102,12 @@ export function HostDashboard({ roomId }: HostDashboardProps) {
       clearInterval(pollInterval);
       ws.close();
       wsRef.current = null;
-      setWsStatus('offline');
+      setWsStatus("offline");
     };
   }, [roomId]);
 
   const flaggedMembers = useMemo(
-    () => members.filter((m) => m.current_state !== 'focused'),
+    () => members.filter((m) => m.current_state !== "focused"),
     [members],
   );
 
@@ -142,8 +125,8 @@ export function HostDashboard({ roomId }: HostDashboardProps) {
     setClosing(true);
     try {
       const resp = await fetch(`${API_BASE}/api/rooms/${roomId}/close`, {
-        method: 'POST',
-        headers: { 'X-Host-Token': hostToken },
+        method: "POST",
+        headers: { "X-Host-Token": hostToken },
       });
       if (resp.ok) {
         setClosed(true);
@@ -159,12 +142,12 @@ export function HostDashboard({ roomId }: HostDashboardProps) {
     setDownloading(true);
     try {
       const resp = await fetch(`${API_BASE}/api/rooms/${roomId}/reports?format=zip`, {
-        headers: { 'X-Host-Token': hostToken },
+        headers: { "X-Host-Token": hostToken },
       });
       if (!resp.ok) return;
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `cohort-${roomId}-reports.zip`;
       a.click();
@@ -174,218 +157,159 @@ export function HostDashboard({ roomId }: HostDashboardProps) {
     }
   }, [roomId, hostToken]);
 
+  const lastLiveSeal = useMemo(() => {
+    if (members.length === 0) return null;
+    const avg = members.reduce((s, m) => s + m.score, 0) / members.length;
+    return Math.round(avg) / 100;
+  }, [members]);
+
   return (
-    <div className="flex h-full w-full flex-col" style={{ backgroundColor: 'var(--surface-0)' }}>
-      <div
-        className="flex flex-wrap items-center justify-between gap-3 px-6 py-4"
-        style={{ borderBottom: '1px solid var(--hairline)' }}
-      >
+    <div className="flex h-full w-full flex-col bg-ink-slate text-paper">
+      {/* HEADER */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b-[3px] border-paper px-6 py-4">
         <div className="flex items-center gap-3">
-          <Users size={20} style={{ color: 'var(--jade)' }} />
+          <Stamp size={20} className="text-stamp" />
           <div className="flex flex-col">
-            <h1 className="font-display text-lg uppercase tracking-[0.08em]" style={{ color: 'var(--ink)' }}>
+            <h1 className="font-display text-lg uppercase tracking-[0.08em] text-paper">
               Mission Control
             </h1>
-            <span className="font-mono text-[10px] tabular-nums" style={{ color: 'var(--ink-faint)' }}>
+            <span className="font-mono text-xs text-graphite">
               Room: {roomId}
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <AnimatePresence>
-            {closed && (
-              <motion.span
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="rounded-full px-3 py-1 font-sans text-[10px] uppercase tracking-[0.1em]"
-                style={{
-                  backgroundColor: 'rgba(166,61,47,0.12)',
-                  color: 'var(--clay)',
-                  border: '1px solid rgba(166,61,47,0.2)',
-                }}
-              >
-                Closed
-              </motion.span>
-            )}
-          </AnimatePresence>
+          {lastLiveSeal !== null && (
+            <StampedSeal confidence={lastLiveSeal} size={44} label="LIVE" />
+          )}
 
-          <div
-            className="flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-[10px]"
-            style={{
-              backgroundColor: wsStatus === 'live'
-                ? 'rgba(14,107,92,0.1)'
-                : wsStatus === 'reconnecting'
-                  ? 'rgba(185,118,58,0.1)'
-                  : 'rgba(166,61,47,0.1)',
-              color: wsStatus === 'live'
-                ? 'var(--jade)'
-                : wsStatus === 'reconnecting'
-                  ? 'var(--ochre)'
-                  : 'var(--clay)',
-            }}
-          >
-            {wsStatus === 'live' ? <Wifi size={10} /> : <WifiOff size={10} />}
-            {wsStatus === 'live' ? `${members.length} connected` : wsStatus}
+          {closed && (
+            <span className="chip !border-paper !bg-stamp !text-paper">Closed</span>
+          )}
+
+          <div className={`flex items-center gap-1.5 border-[2px] border-paper px-3 py-1 font-mono text-xs ${
+            wsStatus === "live" ? "text-ledger" : wsStatus === "reconnecting" ? "text-ochre" : "text-stamp"
+          }`}>
+            {wsStatus === "live" ? <Wifi size={10} /> : <WifiOff size={10} />}
+            {wsStatus === "live" ? `${members.length} connected` : wsStatus}
           </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 px-6 py-3" style={{ borderBottom: '1px solid var(--hairline)' }}>
+      {/* TOOLBAR */}
+      <div className="flex flex-wrap items-center gap-3 border-b-[3px] border-paper px-6 py-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--ink-faint)' }} />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-graphite" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name..."
-            className="w-full rounded-lg px-8 py-1.5 font-sans text-[12px] outline-none transition-colors"
-            style={{
-              backgroundColor: 'var(--surface-1)',
-              border: '1px solid var(--hairline-strong)',
-              color: 'var(--ink)',
-            }}
+            className="w-full border-[3px] border-paper bg-ink px-8 py-1.5 font-body text-xs text-paper outline-none placeholder:text-graphite"
             aria-label="Search participants"
           />
         </div>
 
-        <motion.button
+        <button
           onClick={() => setShowFlaggedOnly((v) => !v)}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-sans text-[11px] transition-colors"
-          style={{
-            backgroundColor: showFlaggedOnly ? 'rgba(185,118,58,0.15)' : 'var(--surface-1)',
-            color: showFlaggedOnly ? 'var(--ochre)' : 'var(--ink-muted)',
-            border: '1px solid var(--hairline-strong)',
-          }}
-          whileTap={{ scale: 0.96 }}
+          className={`flex items-center gap-1.5 border-[3px] border-paper px-3 py-1.5 font-label text-label ${
+            showFlaggedOnly ? "bg-ochre text-ink" : "bg-ink text-paper"
+          }`}
         >
           <AlertTriangle size={12} />
           Flagged ({flaggedMembers.length})
-        </motion.button>
+        </button>
 
         <div className="flex items-center gap-2">
           {!showConfirmClose ? (
-            <motion.button
+            <button
               onClick={() => setShowConfirmClose(true)}
               disabled={closed}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-sans text-[11px] transition-colors disabled:opacity-30"
-              style={{
-                backgroundColor: 'rgba(166,61,47,0.1)',
-                color: 'var(--clay)',
-                border: '1px solid rgba(166,61,47,0.2)',
-              }}
-              whileTap={!closed ? { scale: 0.96 } : {}}
+              className="flex items-center gap-1.5 border-[3px] border-paper bg-ink px-3 py-1.5 font-label text-label text-stamp disabled:opacity-40"
             >
               <XCircle size={12} />
               End Exam
-            </motion.button>
+            </button>
           ) : (
-            <motion.div
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-2"
-            >
-              <span className="font-sans text-[10px]" style={{ color: 'var(--clay)' }}>
-                Are you sure?
-              </span>
+            <div className="flex items-center gap-2">
+              <span className="font-body text-xs text-stamp">Are you sure?</span>
               <button
                 onClick={handleCloseExam}
                 disabled={closing}
-                className="rounded-lg px-3 py-1.5 font-sans text-[11px] transition-colors"
-                style={{
-                  backgroundColor: 'var(--clay)',
-                  color: '#fff',
-                }}
+                className="border-[3px] border-paper bg-stamp px-3 py-1.5 font-label text-label text-paper"
               >
-                {closing ? '...' : 'Confirm'}
+                {closing ? "..." : "Confirm"}
               </button>
               <button
                 onClick={() => setShowConfirmClose(false)}
-                className="font-sans text-[11px] px-2 py-1"
-                style={{ color: 'var(--ink-muted)' }}
+                className="font-body text-xs text-graphite px-2 py-1"
               >
                 Cancel
               </button>
-            </motion.div>
+            </div>
           )}
 
-          <motion.button
+          <button
             onClick={handleDownloadReports}
             disabled={downloading || (!closed && members.length === 0)}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-sans text-[11px] transition-colors disabled:opacity-30"
-            style={{
-              backgroundColor: 'rgba(46,76,140,0.1)',
-              color: 'var(--cobalt)',
-              border: '1px solid rgba(46,76,140,0.2)',
-            }}
-            whileTap={!(downloading || (!closed && members.length === 0)) ? { scale: 0.96 } : {}}
+            className="flex items-center gap-1.5 border-[3px] border-paper bg-ink px-3 py-1.5 font-label text-label text-paper disabled:opacity-40"
           >
             <Download size={12} />
-            {downloading ? 'Downloading...' : 'Download All Reports'}
-          </motion.button>
+            {downloading ? "Downloading..." : "Download Reports"}
+          </button>
         </div>
       </div>
 
+      {/* MEMBER GRID */}
       <div className="flex-1 overflow-y-auto p-6">
         {filteredMembers.length === 0 && members.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-4">
-            <Users size={48} style={{ color: 'var(--ink-faint)', opacity: 0.3 }} />
-            <span className="font-display text-xl uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
+            <Users size={48} className="text-graphite opacity-40" />
+            <span className="font-display text-xl uppercase text-graphite">
               Waiting for participants
             </span>
-            <p className="max-w-md text-center font-sans text-[12px]" style={{ color: 'var(--ink-faint)' }}>
+            <p className="max-w-md text-center font-body text-xs text-graphite">
               Share the exam link with participants. Once they join and pass
               calibration, they will appear here with live attention data.
             </p>
           </div>
         ) : filteredMembers.length === 0 && members.length > 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-4">
-            <UserX size={48} style={{ color: 'var(--ink-faint)', opacity: 0.3 }} />
-            <span className="font-display text-lg uppercase tracking-[0.1em]" style={{ color: 'var(--ink-muted)' }}>
-              No matches
-            </span>
-            <p className="font-sans text-[12px]" style={{ color: 'var(--ink-faint)' }}>
-              No participants match your search or filter.
-            </p>
+            <UserX size={48} className="text-graphite opacity-40" />
+            <span className="font-display text-lg uppercase text-graphite">No matches</span>
+            <p className="font-body text-xs text-graphite">No participants match your search or filter.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredMembers.map((m) => {
-              const stateColor = STATE_COLORS[m.current_state] ?? 'var(--ink-muted)';
               const history = attentionHistory[m.session_id] ?? [];
+              const isFlagged = m.current_state !== "focused";
               return (
                 <div
                   key={m.session_id}
-                  className="relative rounded-xl p-4 flex flex-col gap-3 overflow-hidden"
-                  style={{
-                    backgroundColor: 'var(--surface-1)',
-                    border: '1px solid var(--hairline)',
-                    borderTop: '1px solid var(--edge-highlight)',
-                    boxShadow: 'var(--shadow-sm)',
-                  }}
+                  className={`flex flex-col gap-3 border-[3px] p-4 ${
+                    isFlagged ? "border-stamp shadow-brutal-red" : "border-paper shadow-brutal-paper"
+                  } bg-ink`}
                 >
-                  <div
-                    className="absolute left-0 top-0 h-full w-[3px]"
-                    style={{ backgroundColor: stateColor, boxShadow: `0 0 8px ${stateColor}` }}
-                  />
-
                   <div className="flex items-center justify-between">
-                    <span className="font-sans text-sm font-medium truncate" style={{ color: 'var(--ink)' }}>
+                    <span className="font-body text-sm font-medium text-paper truncate">
                       {m.display_name}
                     </span>
                     <StatusPill state={m.current_state as StatusState} />
                   </div>
 
-                  <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--ink-faint)' }}>
-                    <span className="font-mono tabular-nums">
-                      Score: {m.score}
-                    </span>
-                    <span className="font-mono tabular-nums">
-                      {formatDuration(m.elapsed_seconds)}
-                    </span>
-                    <span className="font-mono tabular-nums">
-                      {m.event_count} events
-                    </span>
+                  <StampedSeal
+                    confidence={Math.max(0.01, m.score / 100)}
+                    violation={m.current_state === "absent" || m.current_state === "multi"}
+                    size={80}
+                    label="SCORE"
+                  />
+
+                  <div className="flex items-center gap-3 text-xs text-graphite">
+                    <span className="font-mono">Score: {m.score}</span>
+                    <span className="font-mono">{formatDuration(m.elapsed_seconds)}</span>
+                    <span className="font-mono">{m.event_count} events</span>
                   </div>
 
                   {history.length > 1 && (
@@ -396,14 +320,13 @@ export function HostDashboard({ roomId }: HostDashboardProps) {
 
                   <div className="flex items-center gap-1.5">
                     <span
-                      className="inline-block h-1.5 w-1.5 rounded-full"
+                      className="inline-block h-1.5 w-1.5"
                       style={{
-                        backgroundColor: getConnectionStatus(wsRef.current) === 'live'
-                          ? 'var(--jade)' : 'var(--ink-faint)',
+                        backgroundColor: wsStatus === "live" ? "#2F5D50" : "#6B6E74",
                       }}
                     />
-                    <span className="font-mono text-[9px]" style={{ color: 'var(--ink-faint)' }}>
-                      {getConnectionStatus(wsRef.current) === 'live' ? 'Live' : 'Offline'}
+                    <span className="font-mono text-xs text-graphite">
+                      {wsStatus === "live" ? "Live" : "Offline"}
                     </span>
                   </div>
                 </div>
@@ -413,10 +336,7 @@ export function HostDashboard({ roomId }: HostDashboardProps) {
         )}
       </div>
 
-      <div
-        className="px-6 py-2 text-center font-sans text-[10px]"
-        style={{ borderTop: '1px solid var(--hairline)', color: 'var(--ink-faint)' }}
-      >
+      <div className="border-t-[3px] border-paper px-6 py-2 text-center font-body text-xs text-graphite">
         Only attention scores and state are broadcast — no video, image, or landmark data leaves participant devices.
       </div>
     </div>

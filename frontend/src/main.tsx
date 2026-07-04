@@ -8,6 +8,9 @@ import { HostExamCreate } from './features/host-exam/HostExamCreate';
 import { HostExamShare } from './features/host-exam/HostExamShare';
 import { HostDashboard } from './features/host-exam/HostDashboard';
 import { JoinExam } from './features/exam/JoinExam';
+import { Styleguide } from './components/styleguide/Styleguide';
+import { ModelTrainingPage } from './features/model/ModelTrainingPage';
+import { PaperBuilderPage } from './features/builder/PaperBuilderPage';
 
 function getCohortIdFromPath(): string | null {
   const m = window.location.pathname.match(/^\/cohort\/([A-Z0-9]{6})$/i);
@@ -65,6 +68,18 @@ function Root() {
   const cohortId = getCohortIdFromPath();
   const joinRoomId = getJoinRoomIdFromPath();
   const hostPath = getHostRoomIdFromPath();
+
+  if (window.location.pathname.match(/^\/styleguide$/i)) {
+    return <Styleguide />;
+  }
+
+  if (window.location.pathname.match(/^\/model$/i)) {
+    return <ModelTrainingPage />;
+  }
+
+  if (window.location.pathname.match(/^\/builder$/i)) {
+    return <PaperBuilderPage />;
+  }
 
   if (cohortId) {
     return <CohortDashboard roomId={cohortId} />;

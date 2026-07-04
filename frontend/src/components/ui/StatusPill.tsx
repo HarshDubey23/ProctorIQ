@@ -1,82 +1,32 @@
-import { motion } from 'framer-motion';
-import { useReducedMotion } from '../../lib/useReducedMotion';
-import { pillTransition } from '../../motion.config';
-
-export type StatusState = 'focused' | 'distracted' | 'absent' | 'drowsy' | 'multi' | 'demo' | 'waiting';
+export type StatusState = "focused" | "distracted" | "absent" | "drowsy" | "multi" | "demo" | "waiting";
 
 interface StatusPillProps {
   state: StatusState;
 }
 
-const PILL_CONFIG: Record<StatusState, { icon: string; label: string; color: string; bgColor: string }> = {
-  focused: {
-    icon: '\u25CF',
-    label: 'Focused',
-    color: 'var(--jade)',
-    bgColor: 'rgba(14,107,92,0.1)',
-  },
-  distracted: {
-    icon: '\u25C8',
-    label: 'Distracted',
-    color: 'var(--ochre)',
-    bgColor: 'rgba(185,118,58,0.1)',
-  },
-  absent: {
-    icon: '\u25CB',
-    label: 'No Face',
-    color: 'var(--clay)',
-    bgColor: 'rgba(166,61,47,0.1)',
-  },
-  drowsy: {
-    icon: '\u263C',
-    label: 'Drowsy',
-    color: 'var(--plum)',
-    bgColor: 'rgba(107,81,120,0.1)',
-  },
-  multi: {
-    icon: '\u25C9',
-    label: 'Multiple',
-    color: 'var(--clay)',
-    bgColor: 'rgba(166,61,47,0.1)',
-  },
-  demo: {
-    icon: '\u25A1',
-    label: 'Demo Mode',
-    color: 'var(--ochre)',
-    bgColor: 'rgba(185,118,58,0.1)',
-  },
-  waiting: {
-    icon: '\u25CC',
-    label: 'Waiting',
-    color: 'var(--cobalt)',
-    bgColor: 'rgba(46,76,140,0.1)',
-  },
+const PILL_CONFIG: Record<StatusState, { icon: string; label: string; borderColor: string; textColor: string }> = {
+  focused:   { icon: "\u25CF", label: "Focused",    borderColor: "#2F5D50", textColor: "#2F5D50" },
+  distracted:{ icon: "\u25C8", label: "Distracted", borderColor: "#B57A1E", textColor: "#B57A1E" },
+  absent:    { icon: "\u25CB", label: "No Face",    borderColor: "#B57A1E", textColor: "#B57A1E" },
+  drowsy:    { icon: "\u263C", label: "Drowsy",     borderColor: "#3E8E7E", textColor: "#3E8E7E" },
+  multi:     { icon: "\u25C9", label: "Multiple",   borderColor: "#B57A1E", textColor: "#B57A1E" },
+  demo:      { icon: "\u25A1", label: "Demo Mode",  borderColor: "#B57A1E", textColor: "#B57A1E" },
+  waiting:   { icon: "\u25CC", label: "Waiting",    borderColor: "#5B6BB0", textColor: "#5B6BB0" },
 };
 
 export function StatusPill({ state }: StatusPillProps) {
-  const reducedMotion = useReducedMotion();
   const cfg = PILL_CONFIG[state];
 
   return (
-    <motion.div
-      className="inline-flex items-center gap-2 rounded-full px-4 py-1.5"
-      style={{ backgroundColor: cfg.bgColor }}
-      transition={reducedMotion ? { duration: 0 } : pillTransition}
-      layout
+    <span
+      className="chip"
+      style={{ borderColor: cfg.borderColor, color: cfg.textColor }}
       role="status"
       aria-live="polite"
       aria-label={`Attention status: ${cfg.label}`}
     >
-      <span
-        className="inline-block text-lg leading-none"
-        style={{ color: cfg.color }}
-        aria-hidden="true"
-      >
-        {cfg.icon}
-      </span>
-      <span className="font-sans text-xs font-medium uppercase tracking-[0.1em]" style={{ color: 'var(--ink)' }}>
-        {cfg.label}
-      </span>
-    </motion.div>
+      <span aria-hidden="true">{cfg.icon} </span>
+      {cfg.label}
+    </span>
   );
 }

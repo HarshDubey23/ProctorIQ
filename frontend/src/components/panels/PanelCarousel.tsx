@@ -1,25 +1,22 @@
-import { useEffect, useCallback, useRef, lazy, Suspense } from 'react';
-import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useUIStore, PANEL_ORDER, type PanelId } from '../../store/ui';
-import { panelTransition } from '../../motion.config';
-import { PanelShell } from './PanelShell';
-import { LandingScreen } from '../landing/LandingScreen';
+import { useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useUIStore, PANEL_ORDER, type PanelId } from "../../store/ui";
+import { panelTransition } from "../../motion.config";
+import { PanelShell } from "./PanelShell";
+import { LandingScreen } from "../landing/LandingScreen";
 
-const ExamPanel = lazy(() => import('../../features/exam/ExamPanel').then(m => ({ default: m.ExamPanel })));
-const SessionPanel = lazy(() => import('../../features/dashboard/SessionPanel').then(m => ({ default: m.SessionPanel })));
-const ReportPanel = lazy(() => import('../../features/report/ReportPanel').then(m => ({ default: m.ReportPanel })));
-const TrendsPanel = lazy(() => import('../../features/trends/TrendsPanel').then(m => ({ default: m.TrendsPanel })));
-const SettingsPanel = lazy(() => import('../../features/settings/SettingsPanel').then(m => ({ default: m.SettingsPanel })));
+const ExamPanel = lazy(() => import("../../features/exam/ExamPanel").then(m => ({ default: m.ExamPanel })));
+const SessionPanel = lazy(() => import("../../features/dashboard/SessionPanel").then(m => ({ default: m.SessionPanel })));
+const ReportPanel = lazy(() => import("../../features/report/ReportPanel").then(m => ({ default: m.ReportPanel })));
+const TrendsPanel = lazy(() => import("../../features/trends/TrendsPanel").then(m => ({ default: m.TrendsPanel })));
+const SettingsPanel = lazy(() => import("../../features/settings/SettingsPanel").then(m => ({ default: m.SettingsPanel })));
 
 function PanelSkeleton() {
   return (
-    <div className="flex h-full w-full items-center justify-center">
+    <div className="flex h-full w-full items-center justify-center bg-paper">
       <div className="flex flex-col items-center gap-3">
-        <div className="h-8 w-8 animate-spin rounded-full border-2" style={{ borderColor: 'var(--cobalt)', borderTopColor: 'transparent' }} />
-        <span className="font-sans text-xs uppercase tracking-widest" style={{ color: 'var(--ink-muted)' }}>
-          Loading…
-        </span>
+        <span className="font-mono text-sm text-graphite animate-pulse">LOADING&hellip;</span>
       </div>
     </div>
   );
@@ -34,83 +31,34 @@ interface PanelConfig {
 }
 
 const PANELS: PanelConfig[] = [
-  { id: 'landing', label: 'HOME', ghost: 'HOME' },
-  { id: 'exam', label: 'EXAM', ghost: 'EXAM' },
-  { id: 'session', label: 'LIVE SESSION', ghost: 'LIVE SESSION' },
-  { id: 'report', label: 'REPORT', ghost: 'REPORT', ctaLabel: 'DOWNLOAD PDF', onCtaClick: () => {} },
-  { id: 'trends', label: 'TRENDS', ghost: 'TRENDS', ctaLabel: 'NEW SESSION', onCtaClick: () => {} },
-  { id: 'settings', label: 'SETTINGS', ghost: 'SETTINGS' },
+  { id: "landing", label: "HOME", ghost: "HOME" },
+  { id: "exam", label: "EXAM", ghost: "EXAM" },
+  { id: "session", label: "LIVE SESSION", ghost: "LIVE SESSION" },
+  { id: "report", label: "REPORT", ghost: "REPORT", ctaLabel: "DOWNLOAD PDF", onCtaClick: () => {} },
+  { id: "trends", label: "TRENDS", ghost: "TRENDS", ctaLabel: "NEW SESSION", onCtaClick: () => {} },
+  { id: "settings", label: "SETTINGS", ghost: "SETTINGS" },
 ];
 
 function getPanelTarget(diff: number) {
   if (diff === 0) {
-    return {
-      left: '0%',
-      scale: 1,
-      opacity: 1,
-      filter: 'blur(0px)',
-      zIndex: 20,
-      pointerEvents: 'auto' as const,
-    };
+    return { left: "0%", scale: 1, opacity: 1, zIndex: 20, pointerEvents: "auto" as const };
   }
   if (diff === -1) {
-    return {
-      left: '15%',
-      scale: 0.88,
-      opacity: 0.55,
-      filter: 'blur(2px)',
-      zIndex: 10,
-      pointerEvents: 'none' as const,
-    };
+    return { left: "12%", scale: 0.92, opacity: 0.5, zIndex: 10, pointerEvents: "none" as const };
   }
   if (diff === 1) {
-    return {
-      left: '75%',
-      scale: 0.88,
-      opacity: 0.55,
-      filter: 'blur(2px)',
-      zIndex: 10,
-      pointerEvents: 'none' as const,
-    };
+    return { left: "76%", scale: 0.92, opacity: 0.5, zIndex: 10, pointerEvents: "none" as const };
   }
   if (diff === -2) {
-    return {
-      left: '25%',
-      scale: 0.78,
-      opacity: 0.35,
-      filter: 'blur(4px)',
-      zIndex: 5,
-      pointerEvents: 'none' as const,
-    };
+    return { left: "22%", scale: 0.85, opacity: 0.25, zIndex: 5, pointerEvents: "none" as const };
   }
   if (diff === 2) {
-    return {
-      left: '50%',
-      scale: 0.78,
-      opacity: 0.35,
-      filter: 'blur(4px)',
-      zIndex: 5,
-      pointerEvents: 'none' as const,
-    };
+    return { left: "54%", scale: 0.85, opacity: 0.25, zIndex: 5, pointerEvents: "none" as const };
   }
   if (diff < -2) {
-    return {
-      left: '-50%',
-      scale: 0.7,
-      opacity: 0,
-      filter: 'blur(6px)',
-      zIndex: 1,
-      pointerEvents: 'none' as const,
-    };
+    return { left: "-50%", scale: 0.8, opacity: 0, zIndex: 1, pointerEvents: "none" as const };
   }
-  return {
-    left: '100%',
-    scale: 0.7,
-    opacity: 0,
-    filter: 'blur(6px)',
-    zIndex: 1,
-    pointerEvents: 'none' as const,
-  };
+  return { left: "100%", scale: 0.8, opacity: 0, zIndex: 1, pointerEvents: "none" as const };
 }
 
 export function PanelCarousel() {
@@ -123,13 +71,8 @@ export function PanelCarousel() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        prevPanel();
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        nextPanel();
-      }
+      if (e.key === "ArrowLeft") { e.preventDefault(); prevPanel(); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); nextPanel(); }
     },
     [prevPanel, nextPanel],
   );
@@ -137,14 +80,14 @@ export function PanelCarousel() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    el.addEventListener('keydown', handleKeyDown);
-    return () => el.removeEventListener('keydown', handleKeyDown);
+    el.addEventListener("keydown", handleKeyDown);
+    return () => el.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full"
+      className="relative h-full w-full overflow-hidden bg-paper"
       tabIndex={0}
       role="region"
       aria-label="Panel carousel"
@@ -174,33 +117,21 @@ export function PanelCarousel() {
               ctaLabel={isActive ? panel.ctaLabel : undefined}
               onCtaClick={isActive ? panel.onCtaClick : undefined}
             >
-              {panel.id === 'landing' && isActive ? (
+              {panel.id === "landing" && isActive ? (
                 <LandingScreen />
-              ) : panel.id === 'exam' && isActive ? (
-                <Suspense fallback={<PanelSkeleton />}>
-                  <ExamPanel />
-                </Suspense>
-              ) : panel.id === 'session' && isActive ? (
-                <Suspense fallback={<PanelSkeleton />}>
-                  <SessionPanel />
-                </Suspense>
-              ) : panel.id === 'report' && isActive ? (
-                <Suspense fallback={<PanelSkeleton />}>
-                  <ReportPanel />
-                </Suspense>
-              ) : panel.id === 'trends' && isActive ? (
-                <Suspense fallback={<PanelSkeleton />}>
-                  <TrendsPanel />
-                </Suspense>
-              ) : panel.id === 'settings' && isActive ? (
-                <Suspense fallback={<PanelSkeleton />}>
-                  <SettingsPanel />
-                </Suspense>
+              ) : panel.id === "exam" && isActive ? (
+                <Suspense fallback={<PanelSkeleton />}><ExamPanel /></Suspense>
+              ) : panel.id === "session" && isActive ? (
+                <Suspense fallback={<PanelSkeleton />}><SessionPanel /></Suspense>
+              ) : panel.id === "report" && isActive ? (
+                <Suspense fallback={<PanelSkeleton />}><ReportPanel /></Suspense>
+              ) : panel.id === "trends" && isActive ? (
+                <Suspense fallback={<PanelSkeleton />}><TrendsPanel /></Suspense>
+              ) : panel.id === "settings" && isActive ? (
+                <Suspense fallback={<PanelSkeleton />}><SettingsPanel /></Suspense>
               ) : (
-                <div className="flex h-full items-center justify-center">
-                  <span className="font-display text-xl uppercase tracking-[0.15em] text-text-secondary">
-                    {panel.label}
-                  </span>
+                <div className="flex h-full items-center justify-center bg-paper">
+                  <span className="font-display text-xl uppercase text-graphite">{panel.label}</span>
                 </div>
               )}
             </PanelShell>
@@ -208,8 +139,9 @@ export function PanelCarousel() {
         );
       })}
 
+      {/* Brutalist nav arrows */}
       <button
-        className="absolute left-6 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/5 p-3 text-text-secondary backdrop-blur-sm transition-colors hover:bg-white/15 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]"
+        className="absolute left-4 top-1/2 z-30 -translate-y-1/2 border-[3px] border-ink bg-paper p-3 text-ink shadow-brutal-sm hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-1 active:translate-y-1 transition-[transform,box-shadow] duration-[60ms] linear"
         onClick={prevPanel}
         aria-label="Previous panel"
       >
@@ -217,30 +149,26 @@ export function PanelCarousel() {
       </button>
 
       <button
-        className="absolute right-6 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/5 p-3 text-text-secondary backdrop-blur-sm transition-colors hover:bg-white/15 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--signal-focus]"
+        className="absolute right-4 top-1/2 z-30 -translate-y-1/2 border-[3px] border-ink bg-paper p-3 text-ink shadow-brutal-sm hover:translate-x-0.5 hover:-translate-y-0.5 active:translate-x-1 active:translate-y-1 transition-[transform,box-shadow] duration-[60ms] linear"
         onClick={nextPanel}
         aria-label="Next panel"
       >
         <ChevronRight size={22} />
       </button>
 
-      <nav
-        className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-3"
-        aria-label="Panel navigation"
-      >
+      {/* Brutalist dot nav */}
+      <nav className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 gap-3" aria-label="Panel navigation">
         {PANELS.map((panel, index) => {
           const isDotActive = index === activeIndex;
           return (
             <button
               key={panel.id}
-              className={`h-2 rounded-full transition-all duration-300 ${
-                isDotActive
-                  ? 'w-8 bg-[--signal-focus]'
-                  : 'w-2 bg-white/20 hover:bg-white/40'
-              }`}
+              className={`border-[2px] border-ink transition-all duration-100 ${
+                isDotActive ? "w-8 bg-stamp" : "w-3 bg-paper-2 hover:bg-graphite"
+              } h-3`}
               onClick={() => setActivePanel(panel.id)}
               aria-label={`Go to ${panel.label} panel`}
-              aria-current={isDotActive ? 'true' : undefined}
+              aria-current={isDotActive ? "true" : undefined}
             />
           );
         })}

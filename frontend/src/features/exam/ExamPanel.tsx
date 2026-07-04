@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, AlertTriangle, Clock, Eye } from 'lucide-react';
 import { useExamSession } from './useExamSession';
 import { ExamQuestionCard } from './ExamQuestionCard';
@@ -7,9 +6,9 @@ import { ProctorOverlay } from './ProctorOverlay';
 import { ResultsScreen } from './ResultsScreen';
 import { useWebcam } from '../selftest/useWebcam';
 import { useDetection, computeAttentionScore } from '../selftest/useDetection';
-import { useReducedMotion } from '../../lib/useReducedMotion';
 import { StatusPill, type StatusState } from '../../components/ui/StatusPill';
 import { fetchSessionHash, computeSessionHash } from '../../lib/signing';
+import { Button } from '../../components/ui/button';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
@@ -37,7 +36,6 @@ export function ExamPanel() {
 
   const EXAM_DURATION = 15 * 60;
 
-  const reducedMotion = useReducedMotion();
   const { videoRef, isDemo } = useWebcam();
   const proctoringActive = state === 'in_progress' || state === 'results';
   const { result: detectionResult, modelFailure } = useDetection(videoRef, {
@@ -152,232 +150,151 @@ export function ExamPanel() {
   const answeredCount = answers.filter((a) => a.selectedIndex !== null).length;
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;
-  const timerColor = timeRemaining <= 60 ? 'clay' : timeRemaining <= 120 ? 'ochre' : 'ink';
   const score = detectionResult ? computeAttentionScore(detectionResult) : 0;
   const attentionLabel = detectionResult?.attention ?? 'focused';
 
   const progressPct = answeredCount / totalQuestions;
 
   return (
-    <div className="relative flex h-full w-full flex-col" style={{ backgroundColor: 'var(--surface-0)' }}>
+    <div className="relative flex h-full w-full flex-col bg-paper">
       <div className="relative flex-1">
-        <AnimatePresence mode="wait">
-          {state === 'idle' && (
-            <motion.div
-              key="idle"
-              className="flex h-full flex-col items-center justify-center gap-6"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="flex flex-col items-center gap-2">
-                <Clock size={48} className="opacity-60" style={{ color: 'var(--jade)' }} />
-                <h1 className="font-display text-[32px] uppercase tracking-[0.05em]" style={{ color: 'var(--ink)' }}>
-                  Timed Exam
-                </h1>
-                <p className="max-w-md text-center font-sans text-sm leading-relaxed" style={{ color: 'var(--ink-muted)' }}>
-                  Answer {totalQuestions} questions within {Math.floor(EXAM_DURATION / 60)} minutes.
-                  ProctorIQ monitors your attention throughout. Tab switches and window blurs are tracked.
-                </p>
+        {state === 'idle' && (
+          <div className="flex h-full flex-col items-center justify-center gap-6 stamp-in">
+            <div className="flex flex-col items-center gap-2">
+              <Clock size={48} className="text-ledger opacity-60" />
+              <h1 className="font-display text-3xl uppercase tracking-[0.05em] text-ink">
+                Timed Exam
+              </h1>
+              <p className="max-w-md text-center font-body text-sm text-graphite leading-relaxed">
+                Answer {totalQuestions} questions within {Math.floor(EXAM_DURATION / 60)} minutes.
+                ProctorIQ monitors your attention throughout. Tab switches and window blurs are tracked.
+              </p>
+            </div>
+            <Button variant="primary" onClick={startExam} aria-label="Begin exam" className="text-lg px-10 py-4">
+              BEGIN EXAM
+            </Button>
+          </div>
+        )}
+
+        {state === 'webcam_permission' && (
+          <div className="flex h-full flex-col items-center justify-center gap-4 stamp-in">
+            <div className="h-8 w-8 border-[3px] border-ledger border-t-transparent animate-spin" />
+            <span className="font-body text-sm text-graphite">
+              Requesting camera permission...
+            </span>
+          </div>
+        )}
+
+        {state === 'countdown' && (
+          <div className="flex h-full flex-col items-center justify-center stamp-in">
+            <span key={countdownValue} className="font-display text-[clamp(4rem,20vw,12rem)] leading-none tabular-nums text-ledger">
+              {countdownValue}
+            </span>
+            <span className="font-body text-sm uppercase tracking-[0.15em] text-graphite">
+              Get Ready
+            </span>
+          </div>
+        )}
+
+        {state === 'in_progress' && currentQuestion && (
+          <div className="flex h-full flex-col stamp-in">
+            <div className="flex items-center justify-between border-b-[3px] border-ink px-6 py-3">
+              <div className={`font-mono text-sm tabular-nums ${timeRemaining <= 60 ? 'text-ochre' : timeRemaining <= 120 ? 'text-ochre' : 'text-ink'}`}>
+                {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
               </div>
-              <button
-                className="rounded-xl px-10 py-4 font-display text-[18px] uppercase tracking-[0.12em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
-                style={{
-                  backgroundColor: 'rgba(14,107,92,0.12)',
-                  color: 'var(--jade)',
-                }}
-                onClick={startExam}
-                aria-label="Begin exam"
-              >
-                BEGIN EXAM
-              </button>
-            </motion.div>
-          )}
-
-          {state === 'webcam_permission' && (
-            <motion.div
-              key="webcam"
-              className="flex h-full flex-col items-center justify-center gap-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="h-8 w-8 animate-spin rounded-full border-2" style={{ borderColor: 'var(--jade)', borderTopColor: 'transparent' }} />
-              <span className="font-sans text-sm" style={{ color: 'var(--ink-muted)' }}>
-                Requesting camera permission...
-              </span>
-            </motion.div>
-          )}
-
-          {state === 'countdown' && (
-            <motion.div
-              key="countdown"
-              className="flex h-full flex-col items-center justify-center"
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 1.5, opacity: 0 }}
-              transition={{ duration: 0.4 }}
-            >
-              <motion.span
-                key={countdownValue}
-                className="font-display text-[clamp(4rem,20vw,12rem)] leading-none tabular-nums"
-                style={{ color: 'var(--jade)' }}
-                initial={{ scale: 1.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.35, ease: 'easeOut' }}
-              >
-                {countdownValue}
-              </motion.span>
-              <span className="font-sans text-sm uppercase tracking-[0.15em]" style={{ color: 'var(--ink-muted)' }}>
-                Get Ready
-              </span>
-            </motion.div>
-          )}
-
-          {state === 'in_progress' && currentQuestion && (
-            <motion.div
-              key="in_progress"
-              className="flex h-full flex-col"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="flex items-center justify-between px-6 py-3" style={{ borderBottom: '1px solid var(--hairline)' }}>
-                <div className="font-mono text-[15px] tabular-nums" style={{ color: timerColor === 'clay' ? 'var(--clay)' : timerColor === 'ochre' ? 'var(--ochre)' : 'var(--ink)' }}>
-                  {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
-                </div>
-                <div className="flex-1 mx-4">
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--hairline)' }}>
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ backgroundColor: 'var(--jade)' }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progressPct * 100}%` }}
-                      transition={reducedMotion ? { duration: 0 } : { duration: 0.4 }}
-                    />
-                  </div>
-                </div>
-                <div className="font-mono text-[13px] tabular-nums" style={{ color: 'var(--ink-muted)' }}>
-                  {currentQuestionIndex + 1}/{totalQuestions}
+              <div className="flex-1 mx-4">
+                <div className="h-2 border-[2px] border-ink bg-paper-2 overflow-hidden">
+                  <div className="h-full bg-ledger transition-all duration-500" style={{ width: `${progressPct * 100}%` }} />
                 </div>
               </div>
-
-              <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
-                <ExamQuestionCard
-                  question={currentQuestion}
-                  answer={currentAnswer ?? { questionId: currentQuestion.id, selectedIndex: null }}
-                  onSelect={selectAnswer}
-                  showResults={false}
-                  questionNumber={currentQuestionIndex + 1}
-                />
+              <div className="font-mono text-xs text-graphite tabular-nums">
+                {currentQuestionIndex + 1}/{totalQuestions}
               </div>
+            </div>
 
-              <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid var(--hairline)' }}>
-                <button
-                  className="flex items-center gap-2 rounded-lg px-4 py-2 font-sans text-sm transition-colors disabled:opacity-30"
-                  style={{
-                    backgroundColor: 'var(--surface-1)',
-                    color: 'var(--ink-muted)',
-                  }}
-                  onClick={prevQuestion}
-                  disabled={currentQuestionIndex === 0}
-                  aria-label="Previous question"
-                >
-                  <ChevronLeft size={16} />
-                  Prev
-                </button>
-
-                <button
-                  className="rounded-lg px-5 py-2 font-sans text-sm uppercase tracking-[0.08em] transition-colors"
-                  style={{
-                    backgroundColor: answeredCount === totalQuestions
-                      ? 'rgba(14,107,92,0.15)'
-                      : 'rgba(185,118,58,0.1)',
-                    color: answeredCount === totalQuestions
-                      ? 'var(--jade)'
-                      : 'var(--ochre)',
-                  }}
-                  onClick={submit}
-                  aria-label="Submit exam"
-                >
-                  Submit {answeredCount}/{totalQuestions}
-                </button>
-
-                <button
-                  className="flex items-center gap-2 rounded-lg px-4 py-2 font-sans text-sm transition-colors disabled:opacity-30"
-                  style={{
-                    backgroundColor: 'var(--surface-1)',
-                    color: 'var(--ink-muted)',
-                  }}
-                  onClick={nextQuestion}
-                  disabled={currentQuestionIndex === totalQuestions - 1}
-                  aria-label="Next question"
-                >
-                  Next
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-
-              {timeRemaining <= 120 && (
-                <div className="flex items-center justify-center gap-2 py-2" style={{ backgroundColor: 'rgba(166,61,47,0.1)' }}>
-                  <AlertTriangle size={14} style={{ color: 'var(--clay)' }} />
-                  <span className="font-sans text-[11px]" style={{ color: 'var(--clay)' }}>
-                    {timeRemaining <= 60 ? 'Last minute! Auto-submit imminent.' : 'Less than 2 minutes remaining.'}
-                  </span>
-                </div>
-              )}
-
-              {isDemo && (
-                <div className="flex items-center justify-center gap-2 py-1" style={{ backgroundColor: 'rgba(185,118,58,0.1)' }}>
-                  <Eye size={12} style={{ color: 'var(--ochre)' }} />
-                  <span className="font-sans text-[10px]" style={{ color: 'var(--ochre)' }}>
-                    DEMO -- proctoring data is simulated
-                  </span>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {state === 'submitted' && (
-            <motion.div
-              key="submitted"
-              className="flex h-full flex-col items-center justify-center gap-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="h-8 w-8 animate-spin rounded-full border-2" style={{ borderColor: 'var(--jade)', borderTopColor: 'transparent' }} />
-              <span className="font-sans text-sm" style={{ color: 'var(--ink-muted)' }}>
-                Computing results...
-              </span>
-            </motion.div>
-          )}
-
-          {state === 'results' && submittedAt && (
-            <motion.div
-              key="results"
-              className="h-full overflow-y-auto"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4 }}
-            >
-              <ResultsScreen
-                answers={answers}
-                events={events}
-                submittedAt={submittedAt}
-                reportHash={reportHash}
-                hashLoading={hashLoading}
-                serverVerified={serverVerified}
-                onDownloadReport={handleDownloadReport}
-                onRetake={handleRetake}
+            <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
+              <ExamQuestionCard
+                question={currentQuestion}
+                answer={currentAnswer ?? { questionId: currentQuestion.id, selectedIndex: null }}
+                onSelect={selectAnswer}
+                showResults={false}
+                questionNumber={currentQuestionIndex + 1}
               />
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+
+            <div className="flex items-center justify-between border-t-[3px] border-ink px-6 py-4">
+              <Button
+                variant="ghost"
+                onClick={prevQuestion}
+                disabled={currentQuestionIndex === 0}
+                aria-label="Previous question"
+              >
+                <ChevronLeft size={16} />
+                Prev
+              </Button>
+
+              <Button
+                variant={answeredCount === totalQuestions ? "primary" : "default"}
+                onClick={submit}
+                aria-label="Submit exam"
+              >
+                Submit {answeredCount}/{totalQuestions}
+              </Button>
+
+              <Button
+                variant="ghost"
+                onClick={nextQuestion}
+                disabled={currentQuestionIndex === totalQuestions - 1}
+                aria-label="Next question"
+              >
+                Next
+                <ChevronRight size={16} />
+              </Button>
+            </div>
+
+            {timeRemaining <= 120 && (
+              <div className="flex items-center justify-center gap-2 border-t-[2px] border-ochre bg-paper-2 py-2">
+                <AlertTriangle size={14} className="text-ochre" />
+                <span className="font-body text-xs text-ochre">
+                  {timeRemaining <= 60 ? 'Last minute! Auto-submit imminent.' : 'Less than 2 minutes remaining.'}
+                </span>
+              </div>
+            )}
+
+            {isDemo && (
+              <div className="flex items-center justify-center gap-2 border-t-[2px] border-ochre bg-paper-2 py-1">
+                <Eye size={12} className="text-ochre" />
+                <span className="font-body text-[10px] text-ochre">
+                  DEMO -- proctoring data is simulated
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {state === 'submitted' && (
+          <div className="flex h-full flex-col items-center justify-center gap-4 stamp-in">
+            <div className="h-8 w-8 border-[3px] border-ledger border-t-transparent animate-spin" />
+            <span className="font-body text-sm text-graphite">
+              Computing results...
+            </span>
+          </div>
+        )}
+
+        {state === 'results' && submittedAt && (
+          <div className="h-full overflow-y-auto stamp-in">
+            <ResultsScreen
+              answers={answers}
+              events={events}
+              submittedAt={submittedAt}
+              reportHash={reportHash}
+              hashLoading={hashLoading}
+              serverVerified={serverVerified}
+              onDownloadReport={handleDownloadReport}
+              onRetake={handleRetake}
+            />
+          </div>
+        )}
       </div>
 
       <video ref={videoRef} autoPlay playsInline muted className="sr-only" aria-hidden="true" />
@@ -396,12 +313,7 @@ export function ExamPanel() {
 
       {modelFailure && (
         <div className="absolute top-4 left-1/2 z-50 -translate-x-1/2">
-          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-sans text-[11px] uppercase tracking-[0.1em] border whitespace-nowrap"
-            style={{
-              backgroundColor: 'rgba(166,61,47,0.15)',
-              color: 'var(--clay)',
-              borderColor: 'rgba(166,61,47,0.3)',
-            }}>
+          <span className="chip !border-[1px] border-ochre text-ochre">
             Model unavailable — using fallback detection
           </span>
         </div>

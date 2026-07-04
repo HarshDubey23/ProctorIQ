@@ -1,186 +1,113 @@
-/*
- * APERTURE DESIGN SYSTEM — ProctorIQ Token Definitions
- *
- * Reasoning: ProctorIQ's actual mechanism is optical — a lens,
- * calibrated light, measured precision.  The visual language should
- * feel like a premium optical instrument (think: the materials
- * language of a well-made camera or a Leica/Zeiss product page)
- * executed with Apple-level restraint — generous whitespace,
- * confident but quiet typography, color used with real semantic
- * purpose rather than decoration.
- *
- * LIGHT MODE  ("Titanium") — brushed-metal cool neutrals.
- * DARK MODE   ("Night Session") — warm charcoal, same undertone
- *              family as light-mode ink, not navy.
- * SEMANTIC    — six jewel-toned colors, each with exactly one job.
- * TYPOGRAPHY  — three typefaces (display serif / UI sans / data mono)
- *              each earning its role with a stated reason.
- */
-
-/* ================================================================
-   1. SURFACES — Light Mode ("Titanium")
-   ================================================================ */
 :root {
-  /* --- Page / chrome --- */
-  --surface-0: #EEF0F0;
-  /* Cards, panels, elevated surfaces */
-  --surface-1: #F9FAFA;
-  /* Modal, popover, dialog */
-  --surface-2: #FFFFFF;
-  /* Separators / rules */
-  --hairline: rgba(20, 24, 26, 0.08);
-  --hairline-strong: rgba(20, 24, 26, 0.16);
+  --paper: #F4F1EA;
+  --paper-2: #E8E3D7;
+  --ink: #1A1A17;
+  --ink-slate: #3A3D42;
+  --graphite: #6B6E74;
+  --stamp: #9B2D20;
+  --ledger: #2F5D50;
+  --ochre: #B57A1E;
+  --signal-gaze: #3E8E7E;
+  --signal-head: #5B6BB0;
+  --signal-audio: #A8556E;
+  --signal-tab: #C08A2E;
 
-  /* --- Text --- */
-  --ink: #14181A;
-  --ink-muted: #5A6366;
-  --ink-faint: #9CA3A5;
+  --font-display: 'Archivo Expanded', 'Archivo Variable', 'Archivo', system-ui, sans-serif;
+  --font-body: 'Public Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --font-label: 'Saira Condensed', 'Archivo', system-ui, sans-serif;
 
-  /* --- Brand / Primary CTA / "focused" attention state ---
-       Jade: calm, in-control, correct. The aspirational color. */
-  --jade: #0E6B5C;
+  --shadow-brutal: 6px 6px 0 0 var(--ink);
+  --shadow-brutal-sm: 3px 3px 0 0 var(--ink);
+  --shadow-brutal-lg: 10px 10px 0 0 var(--ink);
+  --shadow-brutal-red: 6px 6px 0 0 var(--stamp);
+  --shadow-brutal-paper: 6px 6px 0 0 var(--paper);
 
-  /* --- "distracted" attention state only ---
-       Ochre: warm alert, not alarm. A cue to return focus. */
-  --ochre: #B8763A;
-
-  /* --- "drowsy" attention state only ---
-       Plum: deliberately a different hue family from ochre —
-       drowsiness is a qualitatively different concern than
-       distraction, so it gets its own hue, not a shade. */
-  --plum: #6B5178;
-
-  /* --- "absent" / critical / FLAGGED verdict only ---
-       Clay: urgent but not alarmist. Stops the reader without panic. */
-  --clay: #A63D2F;
-
-  /* --- Verification / cryptographic-trust UI only ---
-       Cobalt: never used for attention states — this color means
-       "this claim is authenticated." */
-  --cobalt: #2E4C8C;
-
-  /* --- Gold: reserved ONLY for the signed-report "seal" moment ---
-       Think wax-seal / certificate-of-authenticity, modernized.
-       Must never appear in the same view as --ochre to avoid
-       visual confusion; only appears in report/results verification. */
-  --gold: #C9A24B;
-
-  /* --- Shadows (light mode) --- */
-  --shadow-sm: 0 1px 2px rgba(20, 24, 26, 0.04);
-  --shadow-md: 0 4px 16px rgba(20, 24, 26, 0.06);
-  --shadow-lg: 0 8px 32px rgba(20, 24, 26, 0.08);
-  --shadow-xl: 0 16px 48px rgba(20, 24, 26, 0.10);
-
-  /* --- Edge highlight for cards (light mode) --- */
-  --edge-highlight: rgba(255, 255, 255, 0.06);
-
-  /* ================================================================
-     2. TYPE SCALE — 1.25 ratio (Minor Third)
-     ================================================================ */
-  --text-xs: 0.64rem;
-  --text-sm: 0.8rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
   --text-base: 1rem;
-  --text-lg: 1.25rem;
-  --text-xl: 1.563rem;
-  --text-2xl: 1.953rem;
-  --text-3xl: 2.441rem;
-  --text-4xl: 3.052rem;
-  --text-5xl: 3.815rem;
-  --text-6xl: 4.768rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.5rem;
+  --text-4xl: 3.25rem;
+  --text-5xl: 5rem;
+  --text-6xl: 5rem;
 
-  /* --- Line heights --- */
-  --leading-tight: 1.15;
-  --leading-snug: 1.3;
-  --leading-normal: 1.5;
+  --leading-tight: 1.05;
+  --leading-snug: 1.2;
+  --leading-normal: 1.6;
   --leading-relaxed: 1.625;
+  --tracking-tight: 0;
+  --tracking-normal: 0;
+  --tracking-wide: 0.08em;
+  --tracking-mono: 0;
 
-  /* --- Letter spacing --- */
-  --tracking-tight: -0.025em;
-  --tracking-normal: 0em;
-  --tracking-wide: 0.025em;
-  --tracking-mono: 0.05em;
-}
+  --surface-0: var(--paper);
+  --surface-1: var(--paper-2);
+  --surface-2: var(--paper);
+  --hairline: var(--ink);
+  --hairline-strong: var(--ink);
+  --edge-highlight: var(--ink);
 
-/* ================================================================
-   3. SURFACES — Dark Mode ("Night Session")
-   A real, separate design pass, not an auto-inverted filter.
-   Re-derived with sufficient contrast on dark surfaces,
-   desaturated slightly, lightness lifted.
-   ================================================================ */
-[data-theme='dark'] {
-  --surface-0: #16191B;
-  --surface-1: #1E2225;
-  --surface-2: #262B2E;
-  --hairline: rgba(237, 239, 239, 0.08);
-  --hairline-strong: rgba(237, 239, 239, 0.16);
+  --ink-muted: var(--graphite);
+  --ink-faint: var(--graphite);
+  --jade: var(--ledger);
+  --plum: var(--signal-head);
+  --clay: var(--stamp);
+  --cobalt: var(--signal-head);
+  --gold: var(--ochre);
 
-  --ink: #EDEFEF;
-  --ink-muted: #A3ABAD;
-  --ink-faint: #6B7376;
+  --shadow-sm: var(--shadow-brutal-sm);
+  --shadow-md: var(--shadow-brutal);
+  --shadow-lg: var(--shadow-brutal-lg);
+  --shadow-xl: var(--shadow-brutal-lg);
 
-  /* Dark-adjusted semantic colors — desaturated, lifted lightness */
-  --jade: #15967D;
-  --ochre: #D49455;
-  --plum: #8F6F9E;
-  --clay: #C85544;
-  --cobalt: #4A6FBF;
-  --gold: #D8B55A;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-full: 9999px;
+  --border-width: 3px;
 
-  /* Shadows (dark mode — use light-on-dark shadows) */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
-
-  /* Edge highlight for cards (dark mode — brighter) */
-  --edge-highlight: rgba(255, 255, 255, 0.08);
-}
-
-/* ================================================================
-   4. OPACITY / STATE UTILITIES
-   ================================================================ */
-:root {
+  --signal-focus: var(--signal-gaze);
+  --signal-alert: var(--ochre);
+  --signal-absent: var(--stamp);
+  --signal-multi: var(--stamp);
+  --signal-neutral: var(--graphite);
+  --signal-caution: var(--ochre);
+  --signal-drowsy: var(--signal-audio);
+  --text-primary: var(--ink);
+  --text-secondary: var(--graphite);
+  --text-muted: var(--graphite);
+  --text-mono: var(--signal-head);
+  --bg-neutral: var(--paper);
+  --bg-focused: var(--paper-2);
+  --bg-distracted: var(--paper-2);
+  --bg-absent: var(--paper-2);
+  --bg-multi: var(--paper-2);
+  --panel-neutral: var(--paper-2);
+  --panel-focused: var(--paper-2);
+  --panel-distracted: var(--paper-2);
+  --panel-absent: var(--paper-2);
+  --panel-multi: var(--paper-2);
   --opacity-disabled: 0.4;
   --opacity-hover: 0.08;
   --opacity-active: 0.12;
 }
 
-/* ================================================================
-   5. BORDERS / RADII
-   ================================================================ */
-:root {
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-full: 9999px;
-  --border-width: 1px;
-
-  /*
-   * DEPRECATED ALIASES — maintain backward compatibility with
-   * components still referencing the old signal-/text-/bg- token
-   * names.  New code should use the Aperture tokens above.
-   * These will be removed after all consumers are migrated.
-   */
-  --signal-focus: var(--jade);
-  --signal-alert: var(--ochre);
-  --signal-absent: var(--clay);
-  --signal-multi: var(--clay);
-  --signal-neutral: var(--ink-faint);
-  --signal-caution: var(--ochre);
-  --signal-drowsy: var(--plum);
-  --text-primary: var(--ink);
-  --text-secondary: var(--ink-muted);
-  --text-muted: var(--ink-faint);
-  --text-mono: var(--cobalt);
-  --bg-neutral: var(--surface-0);
-  --bg-focused: var(--surface-1);
-  --bg-distracted: var(--surface-1);
-  --bg-absent: var(--surface-1);
-  --bg-multi: var(--surface-1);
-  --panel-neutral: var(--surface-1);
-  --panel-focused: var(--surface-1);
-  --panel-distracted: var(--surface-1);
-  --panel-absent: var(--surface-1);
-  --panel-multi: var(--surface-1);
+[data-theme='dark'] {
+  --surface-0: #3A3D42;
+  --surface-1: #1A1A17;
+  --surface-2: #3A3D42;
+  --ink: #F4F1EA;
+  --ink-muted: #E8E3D7;
+  --ink-faint: #6B6E74;
+  --hairline: #F4F1EA;
+  --hairline-strong: #F4F1EA;
+  --edge-highlight: #F4F1EA;
+  --shadow-sm: 6px 6px 0 0 #F4F1EA;
+  --shadow-md: 6px 6px 0 0 #F4F1EA;
+  --shadow-lg: 10px 10px 0 0 #F4F1EA;
+  --shadow-xl: 10px 10px 0 0 #F4F1EA;
 }
