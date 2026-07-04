@@ -23,3 +23,7 @@ class InMemoryPaperStore:
     async def list_by_host(self, host_token: str) -> list[Paper]:
         async with self._lock:
             return [p.model_copy(deep=True) for p in self._papers.values() if p.host_token == host_token]
+
+    async def list_by_host_id(self, host_id: str) -> list[Paper]:
+        async with self._lock:
+            return [p.model_copy(deep=True) for p in self._papers.values() if p.host_id == host_id]

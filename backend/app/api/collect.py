@@ -8,7 +8,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.core.collect_store import CollectStore, _get_collect_store
-from backend.core.github_commit import commit_json_file
+from backend.core.github_commit import (
+    CollectionUnavailableError,
+    commit_json_file,
+    get_collect_github_token,
+)
 from backend.models.collect import ClipAccepted, ClipSubmission
 
 router = APIRouter(prefix="/collect", tags=["collect"])
@@ -25,6 +29,9 @@ async def submit_clip(
     body: ClipSubmission,
     store: CollectStore = Depends(_get_collect_store),
 ) -> ClipAccepted:
+    if not get_collect_github_token():
+        raise HTTPException(503, "Data collection is temporarily unavailable")
+
     if body.label not in VALID_LABELS:
         raise HTTPException(400, f"Unknown label '{body.label}'")
     if body.duration_s > MAX_CLIP_SECONDS:
@@ -56,7 +63,10 @@ async def submit_clip(
         "landmarks": body.landmarks,
         "submitted_at": datetime.now(timezone.utc).isoformat(),
     }
-    await commit_json_file(path, payload, message=f"collect: {body.label}/{clip_hash[:8]}")
+    try:
+        await commit_json_file(path, payload, message=f"collect: {body.label}/{clip_hash[:8]}")
+    except CollectionUnavailableError as exc:
+        raise HTTPException(503, "Data collection is temporarily unavailable") from exc
     await store.record_accepted(body.contributor_id, clip_hash)
 
     return ClipAccepted(

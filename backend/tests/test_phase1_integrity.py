@@ -105,7 +105,8 @@ class TestServerSideScoringOverride:
             assert data["quiz_score"] is None
             assert len(data["events"]) == 0
 
-    def test_post_accepts_quiz_score(self) -> None:
+    def test_post_rejects_quiz_score(self) -> None:
+        """quiz_score is no longer client-settable at creation — only /submit sets it."""
         app = create_app()
         with TestClient(app) as client:
             resp = client.post("/api/sessions", json={
@@ -114,11 +115,7 @@ class TestServerSideScoringOverride:
                 "mode": "exam",
                 "quiz_score": 80.0,
             })
-            assert resp.status_code == 201
-            data = resp.json()
-            assert data["quiz_score"] == 80.0
-            assert data["final_score"] is None
-            assert data["verdict"] is None
+            assert resp.status_code == 422
 
     def test_report_scores_reflect_event_log_not_cached_values(self) -> None:
         """Even if events are later added, the report endpoint computes

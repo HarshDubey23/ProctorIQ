@@ -7,27 +7,44 @@ from typing import Any
 
 import httpx
 
-GITHUB_TOKEN = os.environ.get("COLLECT_GITHUB_TOKEN", "")
-GITHUB_REPO = os.environ.get("COLLECT_GITHUB_REPO", "")
-GITHUB_BRANCH = os.environ.get("COLLECT_GITHUB_BRANCH", "collected-data")
 _API = "https://api.github.com"
-_HEADERS = {
-    "Authorization": f"Bearer {GITHUB_TOKEN}",
-    "Accept": "application/vnd.github+json",
-}
+
+
+class CollectionUnavailableError(Exception):
+    pass
+
+
+def get_collect_github_token() -> str:
+    return os.environ.get("COLLECT_GITHUB_TOKEN", "")
+
+
+def _github_repo() -> str:
+    return os.environ.get("COLLECT_GITHUB_REPO", "")
+
+
+def _github_branch() -> str:
+    return os.environ.get("COLLECT_GITHUB_BRANCH", "collected-data")
+
+
+def _headers(token: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
 
 
 async def commit_json_file(path: str, payload: dict[str, Any], message: str) -> None:
-    if not GITHUB_TOKEN:
-        return
+    token = get_collect_github_token()
+    if not token:
+        raise CollectionUnavailableError("COLLECT_GITHUB_TOKEN is not configured")
     content = base64.b64encode(json.dumps(payload).encode()).decode()
-    url = f"{_API}/repos/{GITHUB_REPO}/contents/{path}"
+    url = f"{_API}/repos/{_github_repo()}/contents/{path}"
     async with httpx.AsyncClient(timeout=15) as client:
         for attempt in range(2):
             resp = await client.put(
                 url,
-                headers=_HEADERS,
-                json={"message": message, "content": content, "branch": GITHUB_BRANCH},
+                headers=_headers(token),
+                json={"message": message, "content": content, "branch": _github_branch()},
             )
             if resp.status_code in (429, 500, 502, 503) and attempt == 0:
                 import asyncio
@@ -38,11 +55,12 @@ async def commit_json_file(path: str, payload: dict[str, Any], message: str) -> 
 
 
 async def list_existing_clip_paths() -> list[str]:
-    if not GITHUB_TOKEN:
+    token = get_collect_github_token()
+    if not token:
         return []
-    url = f"{_API}/repos/{GITHUB_REPO}/git/trees/{GITHUB_BRANCH}"
+    url = f"{_API}/repos/{_github_repo()}/git/trees/{_github_branch()}"
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(url, params={"recursive": "1"}, headers=_HEADERS)
+        resp = await client.get(url, params={"recursive": "1"}, headers=_headers(token))
         resp.raise_for_status()
         tree = resp.json()["tree"]
     return [

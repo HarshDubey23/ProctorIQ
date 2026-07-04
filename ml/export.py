@@ -64,6 +64,41 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def write_pca_browser_artifacts(data_dir: Path, target_dir: Path) -> None:
+    mean_path = data_dir / "pca_mean.npy"
+    components_path = data_dir / "pca_components.npy"
+    if not mean_path.exists() or not components_path.exists():
+        print("PCA .npy artifacts not found; skipping browser PCA export")
+        return
+
+    mean = np.load(str(mean_path)).astype(np.float32)
+    components = np.load(str(components_path)).astype(np.float32)
+    if components.ndim != 2:
+        raise ValueError(f"Expected PCA components to be 2-D, got shape {components.shape}")
+    if mean.ndim != 1:
+        raise ValueError(f"Expected PCA mean to be 1-D, got shape {mean.shape}")
+    if components.shape[1] != mean.shape[0]:
+        raise ValueError(
+            f"PCA mean length {mean.shape[0]} does not match component width {components.shape[1]}"
+        )
+
+    binary_path = target_dir / "pca_components.bin"
+    meta_path = target_dir / "pca_meta.json"
+    with open(binary_path, "wb") as f:
+        f.write(mean.tobytes())
+        f.write(components.reshape(-1).tobytes())
+    meta = {
+        "dtype": "float32",
+        "n_components": int(components.shape[0]),
+        "n_features": int(components.shape[1]),
+        "mean_offset": 0,
+        "components_offset": int(mean.shape[0]),
+        "binary": "pca_components.bin",
+    }
+    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    print(f"Wrote PCA binary artifacts to {target_dir}")
+
+
 def main() -> None:
     args = parse_args()
     checkpoint_path = Path(args.checkpoint)
@@ -158,12 +193,9 @@ def main() -> None:
     shutil.copy2(str(onnx_path), str(frontend_onnx))
     print(f"Copied ONNX model to {frontend_onnx}")
 
-    # Copy PCA browser file (both names for compatibility)
-    pca_browser_src = data_dir / "pca_browser.json"
-    if pca_browser_src.exists():
-        shutil.copy2(str(pca_browser_src), str(frontend_dir / "pca_components.json"))
-        shutil.copy2(str(pca_browser_src), str(frontend_dir / "pca_browser.json"))
-        print(f"Copied PCA browser data to {frontend_dir}/pca_components.json")
+    # Copy compact browser PCA artifacts.
+    write_pca_browser_artifacts(data_dir, output_dir)
+    write_pca_browser_artifacts(data_dir, frontend_dir)
 
     # Copy label mapping
     labels_src = data_dir / "labels.json"

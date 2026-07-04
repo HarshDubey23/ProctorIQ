@@ -13,6 +13,8 @@ Training:
 
 import argparse
 import json
+import secrets
+import time
 from pathlib import Path
 
 import numpy as np
@@ -120,10 +122,14 @@ def main() -> None:
     best_epoch = -1
     epochs_no_improve = 0
     best_state: dict[str, torch.Tensor] | None = None
+    run_id = f"run_{int(time.time())}_{secrets.token_hex(4)}"
+    history: list[dict[str, float]] = []
 
     for epoch in range(1, args.epochs + 1):
         model.train()
         train_loss = 0.0
+        train_correct = 0
+        train_total = 0
         for X_batch, y_batch in train_loader:
             X_batch, y_batch = X_batch.to(DEVICE), y_batch.to(DEVICE)
             optimizer.zero_grad()
@@ -132,7 +138,11 @@ def main() -> None:
             loss.backward()
             optimizer.step()
             train_loss += loss.item() * X_batch.size(0)
+            preds = logits.argmax(dim=1)
+            train_correct += (preds == y_batch).sum().item()
+            train_total += y_batch.size(0)
         train_loss /= len(train_loader.dataset)
+        train_acc = 100.0 * train_correct / train_total if train_total > 0 else 0.0
         scheduler.step()
 
         model.eval()
@@ -150,6 +160,16 @@ def main() -> None:
                 all_targets.extend(y_batch.cpu().numpy().tolist())
         val_loss /= len(val_loader.dataset)
         val_f1 = f1_score(all_targets, all_preds, average="macro")
+        val_acc = 100.0 * sum(
+            1 for a, b in zip(all_preds, all_targets) if a == b
+        ) / len(all_targets) if all_targets else 0.0
+        history.append({
+            "epoch": epoch,
+            "train_loss": round(train_loss, 6),
+            "val_loss": round(val_loss, 6),
+            "train_acc": round(train_acc, 4),
+            "val_acc": round(val_acc, 4),
+        })
 
         if val_f1 > best_val_f1:
             best_val_f1 = val_f1
@@ -187,6 +207,36 @@ def main() -> None:
     # Also save full training state
     torch.save(model.state_dict(), output_dir / "model_final.pt")
     print("Saved final model state.")
+
+    # Save per-epoch history
+    runs_dir = Path("checkpoints/runs") if str(output_dir) == "data/models" else output_dir / "runs"
+    runs_dir = runs_dir.resolve()
+    run_dir = runs_dir / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    history_path = run_dir / "history.json"
+    history_path.write_text(json.dumps(history, indent=2), encoding="utf-8")
+    print(f"Saved training history to {history_path} ({len(history)} epochs)")
+
+    # Update registry
+    registry_path = Path("checkpoints/registry.json").resolve()
+    registry: dict = {"runs": [], "latest": None}
+    if registry_path.exists():
+        try:
+            registry = json.loads(registry_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            registry = {"runs": [], "latest": None}
+    registry["runs"].append({
+        "run_id": run_id,
+        "cv_f1": round(best_val_f1, 6),
+        "test_f1": None,
+        "epochs": epoch,
+        "accuracy": round(best_val_f1, 6),
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    })
+    registry["latest"] = run_id
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    registry_path.write_text(json.dumps(registry, indent=2), encoding="utf-8")
+    print(f"Updated registry at {registry_path}")
 
 
 if __name__ == "__main__":

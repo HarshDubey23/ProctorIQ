@@ -12,7 +12,6 @@ Pipeline:
 
 import argparse
 import json
-import base64
 from pathlib import Path
 
 import numpy as np
@@ -227,23 +226,26 @@ def main() -> None:
     with open(n_components_path, "w") as f:
         json.dump({"n_components": int(n_components)}, f)
 
-    # Save browser PCA file (base64-encoded float32 arrays)
+    # Save compact browser PCA artifacts.
     mean_f32 = mean.astype(np.float32)
     comp_f32 = components.astype(np.float32)
-    mean_b64 = base64.b64encode(mean_f32.tobytes()).decode("ascii")
-    comp_b64 = base64.b64encode(comp_f32.tobytes()).decode("ascii")
+    pca_binary_path = output_dir / "pca_components.bin"
+    with open(pca_binary_path, "wb") as f:
+        f.write(mean_f32.tobytes())
+        f.write(comp_f32.reshape(-1).tobytes())
 
-    browser_path = output_dir / "pca_browser.json"
-    browser_data = {
-        "mean_b64": mean_b64,
-        "components_b64": comp_b64,
+    pca_meta_path = output_dir / "pca_meta.json"
+    pca_meta = {
+        "dtype": "float32",
         "n_components": int(n_components),
         "n_features": int(WINDOW_FLAT),
-        "dtype": "float32",
+        "mean_offset": 0,
+        "components_offset": int(mean_f32.shape[0]),
+        "binary": "pca_components.bin",
     }
-    with open(browser_path, "w") as f:
-        json.dump(browser_data, f)
-    print(f"Saved browser PCA file: {browser_path}")
+    with open(pca_meta_path, "w") as f:
+        json.dump(pca_meta, f)
+    print(f"Saved browser PCA artifacts: {pca_binary_path}, {pca_meta_path}")
 
     # Save split mapping
     split_path = output_dir / "clip_split.json"

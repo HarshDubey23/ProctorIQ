@@ -107,13 +107,13 @@ All values stay within the 33ms budget (30fps). ONNX runtime WebAssembly adds ~2
 
 ### Model Size
 
-| Format | Size | Compression |
-|--------|------|-------------|
-| PyTorch (fp32) | 2.3 MB | baseline |
-| ONNX (fp32) | 2.1 MB | 9% reduction |
-| ONNX (quantized int8) | 0.6 MB | **74% reduction** |
+| Artifact | Size | Notes |
+|----------|------|-------|
+| `attention_model.onnx` | ~27 KB | Shipped browser inference model |
+| `pca_components.bin` | ~7.3 MB | Raw float32 PCA mean + components |
+| `pca_meta.json` | <1 KB | Shape and binary layout metadata |
 
-Shipped as `frontend/public/models/attention_model.onnx`. Loads in ~200ms over 4G.
+The PCA payload is a startup-fetch concern, not a per-frame inference latency concern.
 
 ## Failure Mode Analysis
 

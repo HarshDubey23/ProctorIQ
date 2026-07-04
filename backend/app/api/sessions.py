@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timezone
-from typing import cast
+from typing import Any, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -11,8 +12,8 @@ from pydantic import BaseModel
 from backend.core.paper_store import InMemoryPaperStore
 from backend.core.room_store import InMemoryRoomStore
 from backend.core.session_store import InMemorySessionStore, SessionStore
-from backend.cv.scoring import FlagEvent, compute_attention_score
-from backend.models.session import Session, SessionCreate, SessionUpdate, SessionSummary, Verdict
+from backend.core.session_scoring import apply_server_integrity_score
+from backend.models.session import Session, SessionCreate, SessionUpdate, SessionSummary
 from backend.report.pdf import generate_session_pdf
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -52,7 +53,7 @@ async def list_sessions(
 async def create_session(
     body: SessionCreate,
     store: InMemorySessionStore = Depends(_get_store),
-) -> Session:
+) -> dict[str, Any]:
     session_id = body.id if body.id else uuid4().hex
     start = body.start if body.start is not None else datetime.now(timezone.utc)
     existing = await store.get_session(session_id)
@@ -63,10 +64,14 @@ async def create_session(
         start=start,
         end=body.end,
         mode=body.mode,
-        quiz_score=body.quiz_score,
         benchmark=body.benchmark,
     )
-    return await store.create_session(session)
+    created = await store.create_session(session)
+    ws_token = secrets.token_urlsafe(24)
+    await store.set_ws_token(session_id, ws_token)
+    payload = created.model_dump(mode="json")
+    payload["ws_token"] = ws_token
+    return payload
 
 
 @router.get("/{session_id}")
@@ -143,6 +148,8 @@ async def submit_answers(
     quiz_score = round((correct_count / total * 100), 2) if total > 0 else 0.0
 
     session.quiz_score = quiz_score
+    session.end = datetime.now(timezone.utc)
+    apply_server_integrity_score(session)
     await store.update_session(session)
 
     return {"score": quiz_score, "correct": correct_count, "total": total}
@@ -158,33 +165,7 @@ async def get_session_report(
         raise HTTPException(status_code=404, detail="Session not found")
 
     # Always compute integrity fields server-side from the authoritative event log.
-    flag_events = [
-        FlagEvent(event_type=e.event_type, timestamp_s=e.timestamp_s)
-        for e in session.events
-    ]
-    duration_s = 0
-    if session.end and session.start:
-        duration_s = int((session.end - session.start).total_seconds())
-    elif session.start:
-        duration_s = int((datetime.now(timezone.utc) - session.start).total_seconds())
-
-    score_result = compute_attention_score(flag_events, duration_s)
-
-    if score_result.score > -0.5:
-        verdict = Verdict.PASS
-    elif score_result.score > -1.5:
-        verdict = Verdict.FLAGGED
-    elif score_result.score > -3.0:
-        verdict = Verdict.REVIEW
-    else:
-        verdict = Verdict.INCONCLUSIVE
-
-    focused_seconds = duration_s - sum(score_result.event_counts.values())
-    pct_focused = (focused_seconds / duration_s * 100) if duration_s > 0 else 0.0
-
-    session.final_score = score_result.score
-    session.pct_focused = pct_focused
-    session.verdict = verdict
+    apply_server_integrity_score(session)
 
     # Persist the computed scores back to the store so GET /api/sessions/{id}
     # and the session list reflect the same values as the downloaded report.

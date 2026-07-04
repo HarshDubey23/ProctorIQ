@@ -68,7 +68,7 @@ class Session(BaseModel):
 
 
 class SessionCreate(BaseModel):
-    """Restricted model for POST — client cannot supply integrity fields."""
+    """Restricted model for POST — client cannot supply integrity or score fields."""
 
     model_config = ConfigDict(frozen=False, extra="forbid")
 
@@ -76,10 +76,6 @@ class SessionCreate(BaseModel):
     start: datetime | None = None
     end: datetime | None = None
     mode: str = "selftest"
-    quiz_score: float | None = Field(
-        default=None,
-        description="Exam correctness percentage — set by client, distinct from server integrity score",
-    )
     benchmark: BenchmarkResult | None = None
 
 

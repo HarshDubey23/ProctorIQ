@@ -1,96 +1,120 @@
 # Deployment Guide
 
-## Backend (Render / Railway)
+## 1. Push the collected-data branch
 
-### Prerequisites
-- GitHub repo pushed with all changes
-- Render or Railway account
-
-### Steps
-
-1. **Create a Web Service** (Render) or **Deploy** (Railway)
-   - Root directory: `backend/`
-   - Build command: `pip install -r requirements.txt`
-   - Start command: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
-
-2. **Environment Variables**
-   ```
-   REPORT_SIGNING_SECRET=<generate with: python -c "import secrets; print(secrets.token_hex(32))">
-   RATE_LIMIT=60/minute
-   CORS_ORIGINS=https://your-frontend-domain.com
-   COLLECT_GITHUB_TOKEN=ghp_...          # optional — for Phase 6 data collection
-   COLLECT_GITHUB_REPO=YourUser/ProctorIQ
-   COLLECT_GITHUB_BRANCH=collected-data
-   ```
-
-3. **Health Check**
-   - Verify `GET /api/health` returns 200
-
----
-
-## Frontend (Vercel / Netlify)
-
-### Steps
-
-1. **Connect repo** to Vercel/Netlify
-   - Root directory: `frontend/`
-   - Build command: `npm run build`
-   - Output directory: `dist/`
-
-2. **Environment Variables**
-   ```
-   VITE_API_URL=https://your-backend.onrender.com
-   VITE_WS_URL=wss://your-backend.onrender.com
-   ```
-
-3. **Spa fallback** — add redirect rule:
-   - Vercel: auto (default `vercel.json` handles it)
-   - Netlify: `/* /index.html 200`
-
-4. **Custom Domain** (optional)
-   - Point your DNS to Vercel/Netlify
-
----
-
-## Studio (Local Only — Not Deployed)
+Only do this if you are using `/collect`.
 
 ```bash
-cd studio
-pip install -r requirements.txt
-uvicorn main:app --port 8001
-open http://localhost:8001
+git checkout -b collected-data
+git push origin collected-data
+git checkout main
 ```
 
-Studio connects to your local `ml/checkpoints/` and runs training scripts. It is **never deployed** to production.
+Create the token in GitHub: Settings -> Developer settings -> Fine-grained tokens.
+Scope it to this repo only and grant Contents: Read and write.
 
----
+## 2. Deploy the backend
 
-## Data Collection (Phase 6)
+Render free tier:
 
-1. Set `COLLECT_GITHUB_TOKEN` on your deployed backend
-2. Visit `https://your-frontend.vercel.app/collect`
-3. Users submit 8 webcam tasks each (max 30 contributors)
-4. Clips are committed to `collected-data` branch on GitHub
+- New -> Web Service -> connect `HarshDubey23/ProctorIQ`
+- Root directory: `backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
 
----
+Environment variables:
 
-## Training Pipeline
+```text
+ENVIRONMENT=production
+REPORT_SIGNING_SECRET=<run: python -c "import secrets; print(secrets.token_hex(32))">
+RATE_LIMIT=60/minute
+CORS_ORIGINS=["https://your-frontend-domain.vercel.app"]
+SESSION_TIMEOUT_MINUTES=60
+
+# Only if using /collect:
+COLLECT_GITHUB_TOKEN=<your fine-grained PAT>
+COLLECT_GITHUB_REPO=HarshDubey23/ProctorIQ
+COLLECT_GITHUB_BRANCH=collected-data
+
+# AI paper generation:
+HF_API_TOKEN=<your fine-grained HF token with "Make calls to Inference Providers">
+HF_MODEL_ID=openai/gpt-oss-120b:fastest
+```
+
+`CORS_ORIGINS` is a JSON array as a string, including brackets and quotes.
+For multiple origins, use:
+
+```text
+["https://prod.vercel.app","https://preview.vercel.app"]
+```
+
+Deploy and confirm health at:
+
+```text
+https://<backend>.onrender.com/health
+```
+
+Render free tier spins down after about 15 minutes idle and can take roughly 30-60 seconds to wake.
+
+## 3. Deploy the frontend
+
+Vercel:
+
+- New Project -> import repo
+- Root directory: `frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
+
+Environment variables:
+
+```text
+VITE_API_URL=https://<your-backend>.onrender.com
+VITE_WS_URL=wss://<your-backend>.onrender.com
+```
+
+`vercel.json` already has the SPA rewrite rule. After the first frontend deploy, set Render's `CORS_ORIGINS` to the real Vercel URL and redeploy the backend once more.
+
+## 4. Smoke test
+
+- `GET /health` returns `{"status":"ok","version":"0.1.0"}`
+- Self-test panel: webcam and landmark overlay work, and the WebSocket tick stream connects in DevTools -> Network -> WS.
+- Full flow: `/builder` -> publish -> `/host` -> create room -> join in a second tab -> complete exam -> submit.
+- Results screen shows a server score that does not change if you edit DevTools state.
+- Downloaded PDF matches the server score.
+- `/builder` AI Paper Drafting generates real questions, not the old fixed template set.
+
+## 5. Optional: turn on /collect
+
+1. Confirm `COLLECT_GITHUB_TOKEN` is set.
+2. Submit one test clip via `/collect`.
+3. Confirm a commit lands on `collected-data`.
+4. Confirm `GET /api/collect/status` reflects it.
+
+When sharing the URL, mention the cap: 30 contributors times 8 clips, plus possible cold-start delay.
+
+## 6. Confirm AI paper generation
+
+1. Confirm `HF_API_TOKEN` and `HF_MODEL_ID` are set.
+2. Generate papers for three different subjects that are not hardcoded anywhere.
+3. Confirm the questions vary by subject and type.
+4. Unset the token locally once and confirm a clean `503`, not a stack trace.
+
+## 7. Training Studio
+
+Studio is local-only and must never be deployed. It has no internet-facing auth by design.
 
 ```bash
-# 1. Download collected clips from collected-data branch
-# 2. Preprocess
+git fetch origin collected-data
+git checkout collected-data -- ml/data/raw
+git checkout main
 python ml/preprocess.py
 
-# 3. Train from scratch or incrementally
-python ml/train.py                          # full training
-python ml/train_incremental.py --new-batch <folder>   # incremental
-
-# 4. Export to ONNX
-python ml/export.py
-
-# 5. Copy model to frontend
-cp ml/checkpoints/model.onnx frontend/public/models/
-cp ml/data/processed/labels.json frontend/public/models/
+cd studio
+pip install -r requirements.txt --break-system-packages
+uvicorn main:app --reload --port 8001
+# open http://localhost:8001
 ```
 
-Use the **Studio** (`studio/`) for a UI-driven version of the training workflow.
+`ml/export.py` writes `attention_model.onnx`, PCA artifacts, and `labels.json` straight into `frontend/public/models/`. Commit and push those generated artifacts to ship an updated model.
+
+Never deploy `studio/`, and never link `/collect` to it. It is a local training console only.

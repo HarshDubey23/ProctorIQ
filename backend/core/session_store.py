@@ -12,6 +12,10 @@ class SessionStore(Protocol):
 
     async def get_session(self, session_id: str) -> Session | None: ...
 
+    async def set_ws_token(self, session_id: str, token: str) -> None: ...
+
+    async def get_ws_token(self, session_id: str) -> str | None: ...
+
     async def update_session(self, session: Session) -> Session: ...
 
     async def add_event(self, session_id: str, event: Event) -> Event: ...
@@ -26,6 +30,7 @@ class SessionStore(Protocol):
 class InMemorySessionStore:
     def __init__(self) -> None:
         self._sessions: dict[str, Session] = {}
+        self._ws_tokens: dict[str, str] = {}
         self._lock = asyncio.Lock()
 
     async def create_session(self, session: Session) -> Session:
@@ -38,6 +43,14 @@ class InMemorySessionStore:
             if session_id not in self._sessions:
                 return None
             return self._sessions[session_id].model_copy(deep=True)
+
+    async def set_ws_token(self, session_id: str, token: str) -> None:
+        async with self._lock:
+            self._ws_tokens[session_id] = token
+
+    async def get_ws_token(self, session_id: str) -> str | None:
+        async with self._lock:
+            return self._ws_tokens.get(session_id)
 
     async def update_session(self, session: Session) -> Session:
         async with self._lock:

@@ -28,7 +28,7 @@
 │  │  │  │  ┌──────────────┐  ┌───────────┐  ┌──────────────────────────┐   │  │ │   │
 │  │  │  │  │  MediaPipe   │  │  solvePnP  │  │  ONNX Runtime            │   │  │ │   │
 │  │  │  │  │  FaceLandmark│─>│  + Kalman  │  │  Web (1D-CNN quantized)  │   │  │ │   │
-│  │  │  │  │  er (WASM)   │  │  + EAR     │  │  541 KB                  │   │  │ │   │
+│  │  │  │  │  er (WASM)   │  │  + EAR     │  │  ~27 KB ONNX             │   │  │ │   │
 │  │  │  │  └──────────────┘  └───────────┘  └──────────────────────────┘   │  │ │   │
 │  │  │  └────────────────────────────────────────────────────────────────────┘  │ │   │
 │  │  └──────────────────────────────────────────────────────────────────────────┘ │   │
@@ -159,11 +159,11 @@ All visual tokens (colors, fonts, shadows, borders) are defined in a single sour
 
 **Rationale**: The entire product is seen in 5 seconds — landing → session → report → trends → settings. A recruiter evaluating the project sees all five panels immediately. This is a portfolio positioning decision, not just a UX choice.
 
-### 10. Quantized ONNX vs Full-Precision
+### 10. Compact ONNX + Binary PCA Artifacts
 
-**Decision**: Dynamic quantization to int8.
+**Decision**: Ship the browser model as ONNX plus raw float32 PCA artifacts.
 
-**Rationale**: Model size drops from 2.1MB to 0.6MB (74% reduction). Quantized ONNX matches fp32 accuracy within measurement noise (0.992 F1). The size reduction is critical for initial page load — the model is the largest asset downloaded.
+**Rationale**: The current `attention_model.onnx` artifact is about 27 KB. The larger startup payload is PCA data, so it is shipped as `pca_components.bin` with a tiny `pca_meta.json` instead of base64 JSON. This reduces transfer size without changing inference latency claims.
 
 ### 11. HMAC-SHA256 Report Signing vs Server Database as Source of Truth
 

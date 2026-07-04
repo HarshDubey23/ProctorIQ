@@ -10,8 +10,14 @@ from backend.core.collect_store import _store
 
 
 @pytest.fixture(autouse=True)
-def _reset_store() -> Iterator[None]:
+def _reset_store(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     _store.reset_sync()
+    monkeypatch.setenv("COLLECT_GITHUB_TOKEN", "test-token")
+
+    async def _fake_commit_json_file(path: str, payload: dict[str, Any], message: str) -> None:
+        return None
+
+    monkeypatch.setattr("backend.app.api.collect.commit_json_file", _fake_commit_json_file)
     yield
 
 
@@ -40,6 +46,15 @@ class TestCollect:
             data = resp.json()
             assert "clip_hash" in data
             assert data["contributor_clip_count"] == 1
+
+    def test_submit_clip_without_collect_token_returns_503(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("COLLECT_GITHUB_TOKEN", raising=False)
+        app = _make_app()
+        with TestClient(app) as client:
+            resp = client.post("/api/collect/clip", json=self._valid_payload())
+            assert resp.status_code == 503
 
     def test_invalid_label_returns_400(self) -> None:
         app = _make_app()

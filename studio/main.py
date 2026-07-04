@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import uuid
 from pathlib import Path
 from typing import Any, cast
@@ -54,7 +55,7 @@ async def start_training(body: TrainRequest) -> dict[str, Any]:
     run_id = uuid.uuid4().hex[:8]
     script = "train_incremental.py" if body.mode == "continue" else "train.py"
     cmd = [
-        str(ROOT / ".venv" / "Scripts" / "python"),
+        sys.executable,
         str(ML / script),
         "--epochs", str(body.epochs),
         "--lr", str(body.lr),

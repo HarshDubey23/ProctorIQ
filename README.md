@@ -128,7 +128,7 @@ Browser (MediaPipe WASM → ONNX Runtime Web) ──WebSocket──> FastAPI Bac
 | Model accuracy | 99.22% |
 | Macro F1 | 0.9918 |
 | Cross-validation (5-fold) | 0.995 ± 0.003 |
-| Model size (quantized) | 541 KB |
+| Model size (ONNX) | ~27 KB |
 | Inference latency (ML) | <15ms in Web Worker |
 | Per-frame rule latency | ~0.5ms |
 | Kalman-filtered jitter | ±0.5° (down from ±2-3°) |
@@ -236,7 +236,7 @@ The HMAC signature protects the server-computed *score* from tampering, but cann
 | Layer | Technology |
 |-------|-----------|
 | Face Detection | MediaPipe Tasks-Vision WASM |
-| ML Inference | ONNX Runtime Web (quantized int8, 0.6MB) |
+| ML Inference | ONNX Runtime Web (WASM backend, ~27 KB ONNX model) |
 | Frontend | React 18 + TypeScript + Vite + Tailwind CSS |
 | State | Zustand 4 + IndexedDB (idb) |
 | Real-time | WebSocket (FastAPI + custom reconnection client) |

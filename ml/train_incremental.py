@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import time
+import secrets
 from datetime import date
 from pathlib import Path
 
@@ -294,6 +296,8 @@ def select_on_cv_or_val(model: nn.Module, opt: torch.optim.Optimizer,
     best_state = None
     patience = 8
     no_improve = 0
+    run_id = f"inc_{int(time.time())}_{secrets.token_hex(4)}"
+    history: list[dict[str, float]] = []
 
     for epoch in range(1, epochs + 1):
         train_epoch(model, train_loader, criterion, opt)
@@ -306,6 +310,14 @@ def select_on_cv_or_val(model: nn.Module, opt: torch.optim.Optimizer,
         else:
             no_improve += 1
 
+        history.append({
+            "epoch": start_epoch + epoch,
+            "train_loss": 0.0,
+            "val_loss": round(val_loss, 6),
+            "train_acc": 0.0,
+            "val_acc": round(val_f1 * 100.0, 4),
+        })
+
         print(f"Epoch {start_epoch + epoch:3d}/{start_epoch + epochs}  "
               f"Val loss: {val_loss:.4f}  Val macro-F1: {val_f1:.4f}  "
               f"{'*' if val_f1 >= best_f1 else ' '}")
@@ -314,7 +326,14 @@ def select_on_cv_or_val(model: nn.Module, opt: torch.optim.Optimizer,
             break
 
     print(f"Best val macro-F1: {best_f1:.4f}")
-    return {"model": model, "state": best_state, "cv_f1": best_f1, "epochs_run": epoch}
+
+    # Save history
+    runs_dir = CHECKPOINTS_DIR / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    history_path = runs_dir / f"{run_id}.json"
+    history_path.write_text(json.dumps(history, indent=2), encoding="utf-8")
+
+    return {"model": model, "state": best_state, "cv_f1": best_f1, "epochs_run": epoch, "run_id": run_id}
 
 
 def freeze_and_save(result: dict) -> None:

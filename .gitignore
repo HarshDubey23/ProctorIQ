@@ -25,3 +25,5 @@ backend_server.log
 diff_output.txt
 frontend/playwright-report/
 frontend/test-results/
+ml/checkpoints/*.pt
+ml/checkpoints/runs/

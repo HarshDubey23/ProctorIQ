@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -198,11 +199,17 @@ async def _handle_benchmark(ev: WsBenchmarkEvent, session_id: str, store: Sessio
 
 
 async def ws_handler(websocket: WebSocket, session_id: str) -> None:
-    await websocket.accept()
     state = ConnectionState()
     store: SessionStore = cast(SessionStore, websocket.app.state.session_store)
 
     query_params = dict(websocket.query_params)
+    expected_token = await store.get_ws_token(session_id)
+    supplied_token = query_params.get("token", "")
+    if expected_token is None or not hmac.compare_digest(expected_token, supplied_token):
+        await websocket.close(code=4401)
+        return
+
+    await websocket.accept()
     state.room_id = query_params.get("room_id")
     state.display_name = query_params.get("display_name")
 

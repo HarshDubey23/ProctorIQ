@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import time
 
+from typing import Awaitable, Callable
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -9,6 +11,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from backend.core.config import get_settings
 
@@ -29,6 +32,23 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 def register_middleware(app: FastAPI) -> None:
     settings = get_settings()
+
+    @app.middleware("http")
+    async def handle_options_preflight(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        if request.method == "OPTIONS":
+            origin = request.headers.get("origin", "")
+            if origin in settings.cors_origins or "*" in settings.cors_origins:
+                response = Response(status_code=204)
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Methods"] = "*"
+                response.headers["Access-Control-Allow-Headers"] = "*"
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Max-Age"] = "86400"
+                return response
+        return await call_next(request)
 
     app.add_middleware(
         CORSMiddleware,
