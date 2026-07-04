@@ -13,7 +13,7 @@ import type {
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 function createInitialAnswers(questionCount: number): ExamAnswer[] {
-  return Array.from({ length: questionCount }, (_, i) => ({ questionId: String(i), selectedIndex: null }));
+  return Array.from({ length: questionCount }, (_, i) => ({ questionId: `${i}`, selectedIndex: null }));
 }
 
 export function useExamSession(roomId?: string) {

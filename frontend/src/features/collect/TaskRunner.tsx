@@ -45,7 +45,6 @@ export function TaskRunner({ task, progress, onClipRecorded }: TaskRunnerProps) 
   const beginCapture = () => {
     setRecording(true);
     const startTime = Date.now();
-    const durationMs = task.seconds * 1000;
     timerRef.current = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000;
       if (elapsed >= task.seconds) {

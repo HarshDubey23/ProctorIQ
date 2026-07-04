@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import type { ExamAnswer, ProctorEvent } from './types';
-import { Check, X, Download, RotateCcw, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Download, RotateCcw, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
 
@@ -16,7 +16,7 @@ interface ResultsScreenProps {
 }
 
 export function ResultsScreen({
-  answers,
+  answers: _answers,
   events,
   submittedAt: _submittedAt,
   reportHash,

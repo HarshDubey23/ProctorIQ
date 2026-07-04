@@ -9,7 +9,7 @@ import { useDetection, computeAttentionScore } from '../selftest/useDetection';
 import { StatusPill, type StatusState } from '../../components/ui/StatusPill';
 import { fetchSessionHash, computeSessionHash } from '../../lib/signing';
 import { Button } from '../../components/ui/button';
-import type { PublicQuestion } from './types';
+
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
@@ -229,8 +229,8 @@ export function ExamPanel() {
             <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
               <ExamQuestionCard
                 question={currentQuestion}
-                answer={currentAnswer ?? { questionId: String(currentQuestionIndex), selectedIndex: null }}
-                onSelect={(qId, idx) => selectAnswer(currentQuestionIndex, idx)}
+                answer={currentAnswer ?? { questionId: `${currentQuestionIndex}`, selectedIndex: null }}
+                onSelect={(_qId, idx) => selectAnswer(currentQuestionIndex, idx)}
                 showResults={false}
                 questionNumber={currentQuestionIndex + 1}
               />

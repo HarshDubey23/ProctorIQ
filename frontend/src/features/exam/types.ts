@@ -27,7 +27,7 @@ export interface PublicQuestion {
 }
 
 export interface ExamAnswer {
-  questionId: number;
+  questionId: string;
   selectedIndex: number | null;
 }
 

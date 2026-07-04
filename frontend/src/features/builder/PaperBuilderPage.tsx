@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import {
   ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Search, Stamp,
-  Copy, Check, ArrowRight, Download, FileText, Shuffle, Lock, Globe,
+  Copy, ArrowRight, Download, FileText, Shuffle, Lock, Globe,
   Users, Clock, Calendar, GripVertical, Sparkles
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
@@ -42,7 +42,6 @@ export function PaperBuilderPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState<string>("all");
   const [topicFilter, setTopicFilter] = useState<string>("all");
-  const [copied, setCopied] = useState(false);
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [shuffleOptions, setShuffleOptions] = useState(false);
   const [accessMode, setAccessMode] = useState<"open" | "roster">("open");
@@ -226,14 +225,6 @@ export function PaperBuilderPage() {
   const seshPaperId = useMemo(() => sessionStorage.getItem("paper_id"), [step]);
   const displayPaperId = paperId || seshPaperId || "";
   const hostPageUrl = useMemo(() => displayPaperId ? `/host` : `/builder`, [displayPaperId]);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(fullUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { /* noop */ }
-  }, [fullUrl]);
 
   const handleDownloadQR = useCallback(() => {
     const svgEl = qrRef.current?.querySelector("svg");
