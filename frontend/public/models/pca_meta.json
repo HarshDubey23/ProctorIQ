@@ -1,0 +1,8 @@
+{
+  "dtype": "float32",
+  "n_components": 64,
+  "n_features": 28080,
+  "mean_offset": 0,
+  "components_offset": 28080,
+  "binary": "pca_components.bin"
+}

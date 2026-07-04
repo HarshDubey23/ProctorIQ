@@ -75,7 +75,7 @@ export function TemplateGallery({ onSelectTemplate }: TemplateGalleryProps) {
           </div>
         </div>
       ))}
-      <p className="font-body text-[10px] text-graphite">PLACEHOLDER: Replace with API-loaded templates</p>
+      <p className="font-body text-[10px] text-graphite">Starter templates are bundled examples for faster paper setup.</p>
     </div>
   );
 }

@@ -2,19 +2,24 @@ import { useState, useCallback, useMemo, useRef } from "react";
 import {
   ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Search, Stamp,
   Copy, ArrowRight, Download, FileText, Shuffle, Lock, Globe,
-  Users, Clock, Calendar, GripVertical, Sparkles
+  Users, Clock, Calendar, GripVertical, Sparkles, Bot
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import type { Question, QuestionType, PaperSection } from "./types";
 import { QUESTION_TYPE_LABELS } from "./types";
-import { MOCK_QUESTIONS } from "./mockQuestions";
-import { AIPaperDraft } from "./AIPaperDraft";
 import { TemplateGallery } from "./TemplateGallery";
+import { HFChatPanel } from "./HFChatPanel";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const HOST_ACCOUNT_KEY = "proctoriq_host_account";
 
 type BuilderStep = "build" | "publish";
+
+interface HostAccount {
+  host_id: string;
+  host_token: string;
+}
 
 function generateId(): string {
   return `q_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -23,6 +28,24 @@ function generateId(): string {
 function generateExamCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
+async function getOrCreateHostAccount(): Promise<HostAccount> {
+  const existing = localStorage.getItem(HOST_ACCOUNT_KEY);
+  if (existing) {
+    try {
+      const parsed = JSON.parse(existing) as HostAccount;
+      if (parsed.host_id && parsed.host_token) return parsed;
+    } catch {
+      localStorage.removeItem(HOST_ACCOUNT_KEY);
+    }
+  }
+
+  const response = await fetch(`${API_BASE}/api/hosts`, { method: "POST" });
+  if (!response.ok) throw new Error("Failed to create host account");
+  const account = await response.json() as HostAccount;
+  localStorage.setItem(HOST_ACCOUNT_KEY, JSON.stringify(account));
+  return account;
 }
 
 const EMPTY_QUESTION: Question = {
@@ -47,14 +70,14 @@ export function PaperBuilderPage() {
   const [accessMode, setAccessMode] = useState<"open" | "roster">("open");
   const [rosterText, setRosterText] = useState("");
   const [sections, setSections] = useState<PaperSection[]>([
-    { id: "sec_1", title: "Section A", questionIds: ["q1", "q2", "q3", "q8"] },
+    { id: "sec_1", title: "Section A", questionIds: [] },
   ]);
   const [activeSection, setActiveSection] = useState("sec_1");
   const [showNewQuestion, setShowNewQuestion] = useState(false);
-  const [showAIDraft, setShowAIDraft] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showChat, setShowChat] = useState(true);
   const [newQuestion, setNewQuestion] = useState<Question>({ ...EMPTY_QUESTION, id: generateId() });
-  const [questionBank, setQuestionBank] = useState<Question[]>(MOCK_QUESTIONS);
+  const [questionBank, setQuestionBank] = useState<Question[]>([]);
   const [paperId, setPaperId] = useState<string | null>(null);
   const [hostToken, setHostToken] = useState<string | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -164,7 +187,6 @@ export function PaperBuilderPage() {
     for (const q of questions) {
       handleAddQuestion(q.id);
     }
-    setShowAIDraft(false);
   }, [handleAddQuestion]);
 
   const handleTemplateSelect = useCallback((questions: Question[]) => {
@@ -201,15 +223,16 @@ export function PaperBuilderPage() {
       sections: sections.map(s => ({ id: s.id, title: s.title, question_ids: s.questionIds })),
     };
     try {
+      const account = await getOrCreateHostAccount();
       const resp = await fetch(`${API_BASE}/api/papers`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Host-Token": account.host_token },
         body: JSON.stringify(payload),
       });
       if (!resp.ok) throw new Error("Failed to publish paper");
       const paper = await resp.json();
-      const hostToken = paper.host_token;
-      localStorage.setItem(`paper_token_${paper.id}`, hostToken);
+      const hostToken = account.host_token;
+      localStorage.setItem(`paper_token_${paper.id}`, paper.host_token);
       const code = generateExamCode();
       sessionStorage.setItem("exam_code", code);
       sessionStorage.setItem("paper_id", paper.id);
@@ -264,6 +287,9 @@ export function PaperBuilderPage() {
               <h1 className="font-display text-xl uppercase">Paper Builder</h1>
             </div>
             <div className="flex items-center gap-3">
+              <a href="/studio" className="flex items-center gap-1 border-[2px] border-ink px-2 py-1 font-label text-label text-ink hover:bg-ink hover:text-paper">
+                <Bot size={14} /> AI Studio
+              </a>
               <span className="font-mono text-sm text-graphite">
                 {allTotalQuestions} questions &middot; {allTotalMarks} marks
               </span>
@@ -288,19 +314,19 @@ export function PaperBuilderPage() {
                 </button>
               </div>
 
-              {/* AI Draft + Templates toggle */}
+              {/* AI Chat + Templates toggle */}
               <div className="border-b-[3px] border-ink p-3 grid gap-2">
                 <div className="flex gap-2">
-                  <button onClick={() => { setShowAIDraft((p) => !p); setShowTemplates(false); }}
-                    className={`flex items-center gap-1 flex-1 justify-center border-[2px] border-ink px-2 py-1 font-label text-label ${showAIDraft ? 'bg-ink text-paper' : 'bg-paper text-ink hover:bg-paper-2'}`}>
-                    <Sparkles size={12} /> AI Draft
+                  <button onClick={() => { setShowChat((p) => !p); setShowTemplates(false); }}
+                    className={`flex items-center gap-1 flex-1 justify-center border-[2px] border-ink px-2 py-1 font-label text-label ${showChat ? 'bg-ink text-paper' : 'bg-paper text-ink hover:bg-paper-2'}`}>
+                    <Bot size={12} /> AI Chat
                   </button>
-                  <button onClick={() => { setShowTemplates((p) => !p); setShowAIDraft(false); }}
+                  <button onClick={() => { setShowTemplates((p) => !p); setShowChat(false); }}
                     className={`flex items-center gap-1 flex-1 justify-center border-[2px] border-ink px-2 py-1 font-label text-label ${showTemplates ? 'bg-ink text-paper' : 'bg-paper text-ink hover:bg-paper-2'}`}>
                     <FileText size={12} /> Templates
                   </button>
                 </div>
-                {showAIDraft && <AIPaperDraft onAddQuestions={handleAIDraft} />}
+                {showChat && <HFChatPanel onAddQuestions={handleAIDraft} paperContext={questionBank} />}
                 {showTemplates && <TemplateGallery onSelectTemplate={handleTemplateSelect} />}
               </div>
 
@@ -365,6 +391,21 @@ export function PaperBuilderPage() {
                           Cancel
                         </Button>
                       </div>
+                    </div>
+                  </div>
+                )}
+                {filteredQuestions.length === 0 && !showNewQuestion && (
+                  <div className="p-6 text-center">
+                    <p className="font-body text-xs text-graphite mb-3">
+                      No questions yet. Create one or use AI Chat to generate questions.
+                    </p>
+                    <div className="flex gap-2 justify-center">
+                      <Button variant="default" onClick={() => { setShowNewQuestion(true); setNewQuestion({ ...EMPTY_QUESTION, id: generateId() }); }} className="text-xs">
+                        <Plus size={12} /> Create Question
+                      </Button>
+                      <Button variant="ghost" onClick={() => { setShowChat((p) => !p); setShowTemplates(false); }} className="text-xs">
+                        <Sparkles size={12} /> AI Chat
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -527,11 +568,16 @@ export function PaperBuilderPage() {
                     <div className="text-center max-w-sm">
                       <FileText size={32} className="text-graphite/40 mx-auto mb-3" />
                       <p className="font-body text-sm text-graphite">
-                        Click questions from the bank to add them to this section.
+                        Create questions in the left panel, then they will appear here.
                       </p>
-                      <Button variant="ghost" onClick={() => setShowNewQuestion(true)} className="mt-3 text-xs">
-                        <Plus size={12} /> Or create a new question
+                      <div className="flex gap-2 justify-center mt-3">
+                        <Button variant="default" onClick={() => { setShowNewQuestion(true); setNewQuestion({ ...EMPTY_QUESTION, id: generateId() }); }} className="text-xs">
+                          <Plus size={12} /> Create Question
+                        </Button>
+                      <Button variant="ghost" onClick={() => { setShowChat((p) => !p); setShowTemplates(false); }} className="text-xs">
+                        <Sparkles size={12} /> AI Chat
                       </Button>
+                      </div>
                     </div>
                   </div>
                 ) : (

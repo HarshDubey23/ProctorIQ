@@ -12,6 +12,7 @@ import { Styleguide } from './components/styleguide/Styleguide';
 import { ModelTrainingPage } from './features/model/ModelTrainingPage';
 import { PaperBuilderPage } from './features/builder/PaperBuilderPage';
 import CollectPage from './features/collect/CollectPage';
+import { ModelStudioPage } from './features/studio/ModelStudioPage';
 
 function getCohortIdFromPath(): string | null {
   const m = window.location.pathname.match(/^\/cohort\/([A-Z0-9]{6})$/i);
@@ -76,6 +77,10 @@ function Root() {
 
   if (window.location.pathname.match(/^\/model$/i)) {
     return <ModelTrainingPage />;
+  }
+
+  if (window.location.pathname.match(/^\/studio$/i)) {
+    return <ModelStudioPage />;
   }
 
   if (window.location.pathname.match(/^\/builder$/i)) {

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { Question, QuestionType } from "./types";
 
@@ -7,74 +7,91 @@ interface AIPaperDraftProps {
   onAddQuestions: (questions: Question[]) => void;
 }
 
-interface DraftTemplate {
-  topic: string;
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+const ALL_TYPES: QuestionType[] = [
+  "mcq-single",
+  "mcq-multi",
+  "true-false",
+  "short-answer",
+  "long-answer",
+  "numerical",
+  "code",
+];
+
+interface GeneratedQuestion {
+  id: string;
   type: QuestionType;
   title: string;
   body: string;
   marks: number;
+  negative_marks: number;
+  topic: string;
   difficulty: "easy" | "medium" | "hard";
-  options?: string[];
-  correctAnswer?: string;
+  options?: string[] | null;
+  correct_answer?: string | null;
 }
 
-const TEMPLATES: DraftTemplate[] = [
-  { topic: "Algorithms", type: "mcq-single", title: "Sorting Complexity", body: "What is the worst-case time complexity of quicksort?", marks: 2, difficulty: "medium" },
-  { topic: "Data Structures", type: "mcq-single", title: "Hash Table Operations", body: "What is the average-case time complexity for a hash table lookup?", marks: 2, difficulty: "easy" },
-  { topic: "Programming", type: "code", title: "Reverse a String", body: "Write a function that reverses a string in place without using built-in reverse methods.", marks: 5, difficulty: "medium" },
-  { topic: "Databases", type: "short-answer", title: "Normalization Forms", body: "Explain the difference between 2NF and 3NF with an example.", marks: 4, difficulty: "hard" },
-  { topic: "Networking", type: "true-false", title: "OSI Model", body: "The Transport Layer in the OSI model is responsible for end-to-end communication.", marks: 1, difficulty: "easy", options: ["True", "False"], correctAnswer: "True" },
-  { topic: "Security", type: "mcq-single", title: "XSS Attack", body: "Which of the following is the most effective defense against XSS attacks?", marks: 2, difficulty: "medium", options: ["Input validation", "Output encoding", "Rate limiting", "CAPTCHA"], correctAnswer: "Output encoding" },
-  { topic: "Web", type: "short-answer", title: "CORS Policy", body: "What is CORS and why is it needed in web applications?", marks: 3, difficulty: "medium" },
-  { topic: "Programming", type: "code", title: "Binary Search Implementation", body: "Implement binary search on a sorted array. Return the index if found, -1 otherwise.", marks: 6, difficulty: "medium" },
-  { topic: "Algorithms", type: "numerical", title: "Space Complexity", body: "If an algorithm uses an auxiliary array of size n², what is its space complexity in Big O notation?", marks: 2, difficulty: "medium", correctAnswer: "O(n²)" },
-  { topic: "Databases", type: "long-answer", title: "Database Indexing Strategies", body: "Compare B-tree and hash indexing strategies. When would you use each?", marks: 8, difficulty: "hard" },
-];
-
 export function AIPaperDraft({ onAddQuestions }: AIPaperDraftProps) {
-  const [topic, setTopic] = useState("Algorithms");
-  const [difficulty, setDifficulty] = useState("medium");
-  const [count, setCount] = useState(3);
+  const [subject, setSubject] = useState("");
+  const [topic, setTopic] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard" | "mixed">("medium");
+  const [count, setCount] = useState(5);
+  const [types, setTypes] = useState<QuestionType[]>(["mcq-single"]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleDraft = useCallback(() => {
-    const filtered = TEMPLATES.filter(
-      (t) => t.topic === topic && t.difficulty === difficulty
-    );
-    const selected = filtered.slice(0, count);
-    if (selected.length === 0) {
-      const fallback = TEMPLATES.filter((t) => t.topic === topic).slice(0, count);
-      if (fallback.length === 0) return;
-      const questions: Question[] = fallback.map((t, i) => ({
-        id: `draft_${Date.now()}_${i}`,
-        type: t.type,
-        title: t.title,
-        body: t.body,
-        marks: t.marks,
-        negativeMarks: 0,
-        topic: t.topic,
-        difficulty: t.difficulty as "easy" | "medium" | "hard",
-        options: t.options,
-        correctAnswer: t.correctAnswer,
-      }));
-      onAddQuestions(questions);
+  const toggleType = (t: QuestionType) => {
+    setTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+  };
+
+  const handleDraft = useCallback(async () => {
+    if (!subject.trim() || types.length === 0) {
+      setError("Subject and at least one question type are required");
       return;
     }
-    const questions: Question[] = selected.map((t, i) => ({
-      id: `draft_${Date.now()}_${i}`,
-      type: t.type,
-      title: t.title,
-      body: t.body,
-      marks: t.marks,
-      negativeMarks: 0,
-      topic: t.topic,
-      difficulty: t.difficulty as "easy" | "medium" | "hard",
-      options: t.options,
-      correctAnswer: t.correctAnswer,
-    }));
-    onAddQuestions(questions);
-  }, [topic, difficulty, count, onAddQuestions]);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/papers/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject,
+          topic,
+          instructions,
+          difficulty,
+          question_count: count,
+          question_types: types,
+        }),
+      });
+      if (res.status === 503) throw new Error("AI generation isn't configured on the server yet");
+      if (res.status === 429) throw new Error("Rate limit reached - try again in a bit");
+      if (!res.ok) throw new Error("Generation failed - try a smaller question count");
 
-  const topics = [...new Set(TEMPLATES.map((t) => t.topic))];
+      const data: { questions: GeneratedQuestion[]; generated: number; requested: number } = await res.json();
+      const mapped: Question[] = data.questions.map((q) => ({
+        id: q.id,
+        type: q.type,
+        title: q.title,
+        body: q.body,
+        marks: q.marks,
+        negativeMarks: q.negative_marks ?? 0,
+        topic: q.topic,
+        difficulty: q.difficulty,
+        options: q.options ?? undefined,
+        correctAnswer: q.correct_answer ?? undefined,
+      }));
+      onAddQuestions(mapped);
+      if (data.generated < data.requested) {
+        setError(`Generated ${data.generated}/${data.requested}; some were dropped for not matching the schema.`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }, [subject, topic, instructions, difficulty, count, types, onAddQuestions]);
 
   return (
     <div className="border-[3px] border-ink bg-paper-2 p-4">
@@ -83,27 +100,64 @@ export function AIPaperDraft({ onAddQuestions }: AIPaperDraftProps) {
         <span className="font-label text-label text-graphite">AI Paper Drafting</span>
       </div>
       <div className="grid gap-2">
+        <input
+          placeholder="Subject (e.g. Data Structures)"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          className="border-[2px] border-ink bg-paper px-2 py-1 font-body text-xs text-ink outline-none"
+        />
+        <input
+          placeholder="Topic focus (optional, e.g. graph algorithms)"
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          className="border-[2px] border-ink bg-paper px-2 py-1 font-body text-xs text-ink outline-none"
+        />
+        <textarea
+          placeholder="Extra instructions (optional)"
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+          rows={2}
+          className="border-[2px] border-ink bg-paper px-2 py-1 font-body text-xs text-ink outline-none"
+        />
+        <div className="flex flex-wrap gap-1">
+          {ALL_TYPES.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => toggleType(t)}
+              className={`border-[2px] border-ink px-2 py-0.5 font-mono text-[10px] ${
+                types.includes(t) ? "bg-ochre text-ink" : "bg-paper text-graphite"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-2">
-          <select value={topic} onChange={(e) => setTopic(e.target.value)}
-            className="flex-1 border-[2px] border-ink bg-paper px-2 py-1 font-body text-xs text-ink outline-none" aria-label="Topic">
-            {topics.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}
-            className="flex-1 border-[2px] border-ink bg-paper px-2 py-1 font-body text-xs text-ink outline-none" aria-label="Difficulty">
+          <select
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value as typeof difficulty)}
+            className="flex-1 border-[2px] border-ink bg-paper px-2 py-1 font-body text-xs text-ink outline-none"
+          >
             <option value="easy">Easy</option>
             <option value="medium">Medium</option>
             <option value="hard">Hard</option>
+            <option value="mixed">Mixed</option>
           </select>
-          <input type="number" value={count} onChange={(e) => setCount(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-            min={1} max={10} aria-label="Number of questions"
-            className="w-12 border-[2px] border-ink bg-paper px-2 py-1 font-mono text-xs text-ink outline-none text-center" />
+          <input
+            type="number"
+            value={count}
+            onChange={(e) => setCount(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+            min={1}
+            max={20}
+            className="w-14 border-[2px] border-ink bg-paper px-2 py-1 font-mono text-xs text-ink outline-none text-center"
+          />
         </div>
-        <Button variant="primary" onClick={handleDraft} className="text-xs py-1.5">
-          <Sparkles size={12} /> Draft {count} Questions
+        <Button variant="primary" onClick={handleDraft} disabled={loading} className="text-xs py-1.5">
+          {loading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+          {loading ? "Generating..." : `Draft ${count} Questions`}
         </Button>
-        <p className="font-body text-[10px] text-graphite">
-          PLACEHOLDER: Replace template data with real AI model inference
-        </p>
+        {error && <p className="font-body text-[10px] text-red-600">{error}</p>}
       </div>
     </div>
   );

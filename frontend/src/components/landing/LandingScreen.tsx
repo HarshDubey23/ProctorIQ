@@ -3,7 +3,7 @@ import { BentoGrid } from "../ui/BentoGrid";
 import { BentoCard } from "../ui/BentoCard";
 import { useUIStore } from "../../store/ui";
 import { useCallback, useMemo } from "react";
-import { Eye, Shield, ScanFace, Stamp, Activity, Radio, Languages } from "lucide-react";
+import { Eye, Shield, ScanFace, Stamp, Activity, Radio, Languages, Bot } from "lucide-react";
 import { StampedSeal } from "../ui/stamped-seal";
 import { Button } from "../ui/button";
 import { useLang } from "../../lib/i18n";
@@ -109,6 +109,10 @@ export function LandingScreen() {
             <Stamp size={18} />
             Build Paper
           </Button>
+          <Button variant="default" onClick={() => { window.location.href = "/studio"; }}>
+            <Bot size={18} />
+            AI Studio
+          </Button>
           <Button variant="default" onClick={goToExam}>
             <ScanFace size={18} />
             Start Exam
@@ -158,7 +162,7 @@ export function LandingScreen() {
           />
         </div>
         <p className="font-body text-sm text-graphite mt-4 text-center max-w-2xl mx-auto">
-          A 1D-CNN on windowed face-landmark sequences, PCA to 64 components, ONNX-quantized to 541 KB.
+          A 1D-CNN on windowed face-landmark sequences, PCA to 64 components, exported to a compact ONNX artifact.
           All inference runs in-browser via MediaPipe WASM + ONNX Runtime Web.
         </p>
       </section>
@@ -171,7 +175,7 @@ export function LandingScreen() {
             <span className="block font-label text-label text-graphite mt-1">Accuracy</span>
           </div>
           <div>
-            <span className="font-mono text-data-lg font-bold text-ink">541 KB</span>
+            <span className="font-mono text-data-lg font-bold text-ink">~27 KB</span>
             <span className="block font-label text-label text-graphite mt-1">Model Size</span>
           </div>
           <div>
@@ -194,6 +198,7 @@ export function LandingScreen() {
           <div className="flex items-center gap-4">
             <a href="/styleguide" className="font-body text-sm text-paper-2 hover:text-paper underline">Styleguide</a>
             <a href="/model" className="font-body text-sm text-paper-2 hover:text-paper underline">Model Card</a>
+            <a href="/studio" className="font-body text-sm text-paper-2 hover:text-paper underline">AI Studio</a>
             <a href="/host" className="font-body text-sm text-paper-2 hover:text-paper underline">Host Exam</a>
           </div>
         </div>

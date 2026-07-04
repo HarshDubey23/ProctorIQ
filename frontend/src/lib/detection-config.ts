@@ -10,7 +10,7 @@ export const MEDIAPIPE_WASM_DIR =
 export const DETECTION_CONFIG: DetectionConfig = {
   faceLandmarkerModel: FACE_LANDMARKER_MODEL,
   onnxModel: '/models/attention_model.onnx',
-  pcaData: '/models/pca_components.json',
+  pcaData: '/models/pca_meta.json',
   labelsUrl: '/models/labels.json',
   wasmDir: MEDIAPIPE_WASM_DIR,
 };

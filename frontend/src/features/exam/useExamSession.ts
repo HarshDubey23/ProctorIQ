@@ -8,6 +8,7 @@ import type {
   ExamAnswer,
   ProctorEvent,
   ProctorEventType,
+  ServerExamResults,
 } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
@@ -25,6 +26,8 @@ export function useExamSession(roomId?: string) {
   const [events, setEvents] = useState<ProctorEvent[]>([]);
   const [submittedAt, setSubmittedAt] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState('');
+  const [wsToken, setWsToken] = useState('');
+  const [serverResults, setServerResults] = useState<ServerExamResults | null>(null);
   const [sessionRegistered, setSessionRegistered] = useState(false);
   const [questions, setQuestions] = useState<PublicQuestion[]>([]);
   const [examDurationSec, setExamDurationSec] = useState(15 * 60);
@@ -73,9 +76,9 @@ export function useExamSession(roomId?: string) {
       });
   }, [roomId]);
 
-  async function registerSession(sid: string, startTs: number): Promise<void> {
+  async function registerSession(sid: string, startTs: number): Promise<string> {
     try {
-      await fetch(`${API_BASE}/api/sessions`, {
+      const response = await fetch(`${API_BASE}/api/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -84,13 +87,21 @@ export function useExamSession(roomId?: string) {
           mode: 'exam',
         }),
       });
+      if (response.ok) {
+        const data: { ws_token?: string } = await response.json();
+        const token = data.ws_token ?? '';
+        setWsToken(token);
+        setSessionRegistered(true);
+        return token;
+      }
     } catch {
       // Backend unreachable — exam can still proceed offline
     }
     setSessionRegistered(true);
+    return '';
   }
 
-  const submit = useCallback(() => {
+  const submit = useCallback(async () => {
     if (stateRef.current !== 'in_progress') return;
     clearTimers();
     wsDisconnect();
@@ -125,11 +136,38 @@ export function useExamSession(roomId?: string) {
         selected_answer: a.selectedIndex != null ? String(a.selectedIndex) : null,
       })),
     };
-    fetch(`${API_BASE}/api/sessions/${sessionId}/submit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(submission),
-    }).catch(() => {});
+    try {
+      const submitResponse = await fetch(`${API_BASE}/api/sessions/${sessionId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(submission),
+      });
+      if (submitResponse.ok) {
+        const sessionResponse = await fetch(`${API_BASE}/api/sessions/${sessionId}`);
+        if (sessionResponse.ok) {
+          const data: {
+            quiz_score: number | null;
+            final_score: number | null;
+            pct_focused: number | null;
+            verdict: ServerExamResults['verdict'];
+            events: Array<{ event_type: string }>;
+          } = await sessionResponse.json();
+          const eventCounts: Record<string, number> = {};
+          for (const event of data.events) {
+            eventCounts[event.event_type] = (eventCounts[event.event_type] ?? 0) + 1;
+          }
+          setServerResults({
+            quizScore: data.quiz_score,
+            finalScore: data.final_score,
+            pctFocused: data.pct_focused,
+            verdict: data.verdict,
+            eventCounts,
+          });
+        }
+      }
+    } catch {
+      // Server results remain unavailable; the UI will make that explicit.
+    }
 
     setTimeout(() => setState('results'), 600);
   }, [clearTimers, wsDisconnect, sessionId, questions]);
@@ -159,10 +197,13 @@ export function useExamSession(roomId?: string) {
           setSessionId(sid);
           eventsRef.current = [];
           setSessionRegistered(false);
+          setWsToken('');
+          setServerResults(null);
           setState('in_progress');
-          registerSession(sid, startTimeRef.current);
-          const rid = sessionStorage.getItem('exam_room_id') || undefined;
-          wsConnect(sid, { roomId: rid });
+          registerSession(sid, startTimeRef.current).then((token) => {
+            const rid = sessionStorage.getItem('exam_room_id') || undefined;
+            wsConnect(sid, { roomId: rid, token });
+          });
           startTimer();
           return 0;
         }
@@ -194,6 +235,8 @@ export function useExamSession(roomId?: string) {
     startTimeRef.current = 0;
     eventsRef.current = [];
     setSessionId('');
+    setWsToken('');
+    setServerResults(null);
     setSessionRegistered(false);
     setState('idle');
     setAnswers(createInitialAnswers(questions.length));
@@ -276,6 +319,8 @@ export function useExamSession(roomId?: string) {
     totalQuestions,
     examScorePct,
     sessionId,
+    wsToken,
+    serverResults,
     sessionRegistered,
     questions,
     loadingPaper,

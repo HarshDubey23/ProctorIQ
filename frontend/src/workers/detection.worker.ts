@@ -252,25 +252,29 @@ async function loadONNX(url: string): Promise<void> {
   }
 }
 
-function decodeBase64Float32(b64: string): Float32Array {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new Float32Array(bytes.buffer.slice(0));
-}
-
 async function loadPCA(url: string): Promise<void> {
   try {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const raw = (await resp.json()) as {
-      mean_b64: string;
-      components_b64: string;
+    const metaResp = await fetch(url);
+    if (!metaResp.ok) throw new Error(`HTTP ${metaResp.status}`);
+    const raw = (await metaResp.json()) as {
+      dtype: 'float32';
       n_components: number;
       n_features: number;
+      mean_offset: number;
+      components_offset: number;
+      binary: string;
     };
-    const mean = decodeBase64Float32(raw.mean_b64);
-    const compRaw = decodeBase64Float32(raw.components_b64);
+    if (raw.dtype !== 'float32') throw new Error(`Unsupported PCA dtype ${raw.dtype}`);
+    const binaryUrl = new URL(raw.binary, metaResp.url).toString();
+    const binResp = await fetch(binaryUrl);
+    if (!binResp.ok) throw new Error(`HTTP ${binResp.status}`);
+    const floats = new Float32Array(await binResp.arrayBuffer());
+    const expectedLength = raw.components_offset + raw.n_components * raw.n_features;
+    if (floats.length < expectedLength) {
+      throw new Error(`PCA binary too short: got ${floats.length}, expected ${expectedLength}`);
+    }
+    const mean = floats.subarray(raw.mean_offset, raw.mean_offset + raw.n_features);
+    const compRaw = floats.subarray(raw.components_offset, expectedLength);
     const components: Float32Array[] = [];
     const stride = raw.n_features;
     for (let i = 0; i < raw.n_components; i++) {

@@ -1,4 +1,4 @@
-const { abs, sign, sqrt } = Math;
+const { abs } = Math;
 
 function matMul(A: Float64Array, B: Float64Array, n: number): Float64Array {
   const C = new Float64Array(n * n);
@@ -70,40 +70,6 @@ function matVecMul(A: Float64Array, x: Float64Array, n: number, m: number): Floa
   return y;
 }
 
-export function jacobiEigen(A: Float64Array, n: number, maxIter = 100, tol = 1e-12): { D: Float64Array; V: Float64Array } {
-  const V = matIdentity(n);
-  const D = new Float64Array(A);
-  for (let iter = 0; iter < maxIter; iter++) {
-    let maxOff = 0, p = 0, q = 0;
-    for (let i = 0; i < n; i++)
-      for (let j = i + 1; j < n; j++) {
-        const v = abs(D[i * n + j]);
-        if (v > maxOff) { maxOff = v; p = i; q = j; }
-      }
-    if (maxOff < tol) break;
-    const theta = (D[q * n + q] - D[p * n + p]) / (2 * D[p * n + q]);
-    const t = sign(theta) / (abs(theta) + sqrt(theta * theta + 1));
-    const c = 1 / sqrt(1 + t * t), s = t * c;
-    for (let i = 0; i < n; i++) {
-      if (i !== p && i !== q) {
-        const aip = D[p * n + i], aiq = D[q * n + i];
-        D[p * n + i] = c * aip - s * aiq; D[i * n + p] = D[p * n + i];
-        D[q * n + i] = s * aip + c * aiq; D[i * n + q] = D[q * n + i];
-      }
-    }
-    const app = D[p * n + p], aqq = D[q * n + q], apq = D[p * n + q];
-    D[p * n + p] = c * c * app + s * s * aqq - 2 * s * c * apq;
-    D[q * n + q] = s * s * app + c * c * aqq + 2 * s * c * apq;
-    D[p * n + q] = 0; D[q * n + p] = 0;
-    for (let i = 0; i < n; i++) {
-      const vip = V[i * n + p], viq = V[i * n + q];
-      V[i * n + p] = c * vip - s * viq;
-      V[i * n + q] = s * vip + c * viq;
-    }
-  }
-  return { D, V };
-}
-
 export class KalmanFilter {
   constructor(
     readonly n: number,
@@ -139,23 +105,6 @@ export class KalmanFilter {
     for (let i = 0; i < this.n * this.n; i++) IminusKH[i] = I[i] - KH[i];
     this.P = matMul(IminusKH, this.P, this.n);
   }
-}
-
-export function createHeadPoseFilter(): KalmanFilter {
-  const n = 6, m = 6;
-  const F = matIdentity(n);
-  const H = new Float64Array(m * n);
-  for (let i = 0; i < n; i++) H[i * n + i] = 1;
-  const Q = new Float64Array(n * n);
-  Q[0 * n + 0] = 0.05; Q[1 * n + 1] = 0.05; Q[2 * n + 2] = 0.05;
-  Q[3 * n + 3] = 2.0;  Q[4 * n + 4] = 2.0;  Q[5 * n + 5] = 2.0;
-  const R = new Float64Array(m * m);
-  R[0 * m + 0] = 0.1;  R[1 * m + 1] = 0.1;  R[2 * m + 2] = 0.1;
-  R[3 * m + 3] = 5.0;  R[4 * m + 4] = 5.0;  R[5 * m + 5] = 5.0;
-  const x0 = new Float64Array(n);
-  const P0 = matIdentity(n);
-  for (let i = 0; i < n; i++) P0[i * n + i] = 10;
-  return new KalmanFilter(n, m, x0, P0, F, H, Q, R);
 }
 
 export function resetKalman(kf: KalmanFilter): void {

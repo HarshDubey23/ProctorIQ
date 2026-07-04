@@ -1,6 +1,6 @@
 import type { Question } from "./types";
 
-// PLACEHOLDER: Replace with real question bank from API/database
+// Starter question bank used by the manual paper builder browse panel.
 export const MOCK_QUESTIONS: Question[] = [
   { id: "q1", type: "mcq-single", title: "TCP/IP Model Layers", body: "Which layer of the TCP/IP model is responsible for routing packets between networks?", marks: 2, negativeMarks: 0, topic: "Networking", difficulty: "medium", options: ["Application", "Transport", "Internet", "Network Access"], correctAnswer: "Internet" },
   { id: "q2", type: "mcq-single", title: "Big O Notation", body: "What is the time complexity of binary search on a sorted array?", marks: 2, negativeMarks: 0.5, topic: "Algorithms", difficulty: "easy", options: ["O(1)", "O(log n)", "O(n)", "O(n²)"], correctAnswer: "O(log n)" },

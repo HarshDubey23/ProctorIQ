@@ -1,13 +1,11 @@
-import { useMemo, useState, useEffect } from 'react';
-import type { ExamAnswer, ProctorEvent } from './types';
+import { useState, useEffect } from 'react';
+import type { ServerExamResults } from './types';
 import { Download, RotateCcw, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
 
 interface ResultsScreenProps {
-  answers: ExamAnswer[];
-  events: ProctorEvent[];
-  submittedAt: number;
+  results: ServerExamResults | null;
   reportHash: string;
   hashLoading: boolean;
   serverVerified: boolean;
@@ -16,9 +14,7 @@ interface ResultsScreenProps {
 }
 
 export function ResultsScreen({
-  answers: _answers,
-  events,
-  submittedAt: _submittedAt,
+  results,
   reportHash,
   hashLoading,
   serverVerified,
@@ -26,24 +22,8 @@ export function ResultsScreen({
   onRetake,
 }: ResultsScreenProps) {
   const [showContent, setShowContent] = useState(false);
-
-  const integrityScoreValue = useMemo(() => {
-    let score = 100;
-    for (const e of events) {
-      if (e.type === 'tab_switch' || e.type === 'window_blur') {
-        score = Math.max(0, score - 2);
-      }
-    }
-    return score;
-  }, [events]);
-
-  const eventCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const e of events) {
-      counts[e.type] = (counts[e.type] ?? 0) + 1;
-    }
-    return counts;
-  }, [events]);
+  const integrityScoreValue = results?.finalScore != null ? Math.round(results.finalScore) : null;
+  const eventCounts = results?.eventCounts ?? {};
 
   useEffect(() => {
     const t = setTimeout(() => setShowContent(true), 600);
@@ -61,19 +41,37 @@ export function ResultsScreen({
               </span>
             </div>
             <span className="font-body text-xs text-graphite mt-2">
-              Exam submitted successfully. Your integrity score is {integrityScoreValue}.
+              {integrityScoreValue == null
+                ? 'Exam submitted successfully. Server results are unavailable.'
+                : `Exam submitted successfully. Your server integrity score is ${integrityScoreValue}.`}
             </span>
           </div>
         </div>
 
         <div className="border-[3px] border-ink bg-paper-2 p-4 grid grid-cols-2 gap-4 text-center">
           <div>
-            <div className="font-mono text-data-lg font-bold text-ink">{integrityScoreValue}</div>
+            <div className="font-mono text-data-lg font-bold text-ink">
+              {integrityScoreValue ?? '--'}
+            </div>
             <div className="font-label text-label text-graphite">Integrity</div>
           </div>
           <div>
-            <div className="font-mono text-data-lg font-bold text-ink">{events.length}</div>
-            <div className="font-label text-label text-graphite">Events</div>
+            <div className="font-mono text-data-lg font-bold text-ink">
+              {results?.quizScore == null ? '--' : Math.round(results.quizScore)}
+            </div>
+            <div className="font-label text-label text-graphite">Quiz</div>
+          </div>
+        </div>
+        <div className="border-[3px] border-ink bg-paper p-4 grid grid-cols-2 gap-4 text-center">
+          <div>
+            <div className="font-mono text-data-sm font-bold text-ink">
+              {results?.pctFocused == null ? '--' : `${Math.round(results.pctFocused)}%`}
+            </div>
+            <div className="font-label text-label text-graphite">Focused</div>
+          </div>
+          <div>
+            <div className="font-mono text-data-sm font-bold text-ink">{results?.verdict ?? '--'}</div>
+            <div className="font-label text-label text-graphite">Verdict</div>
           </div>
         </div>
       </div>
@@ -92,27 +90,6 @@ export function ResultsScreen({
                 </div>
               ))
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 grid gap-2">
-            <span className="chip">Timeline</span>
-            <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
-              {events.length === 0 ? (
-                <span className="font-body text-sm text-graphite italic">No events</span>
-              ) : (
-                events.map((e, i) => (
-                  <div key={`ev-${i}`} className="flex items-center gap-2 border-[2px] border-ink px-3 py-1">
-                    <span className="h-1.5 w-1.5 shrink-0 bg-ochre" />
-                    <span className="flex-1 font-body text-sm text-ink capitalize">{e.type.replace(/_/g, ' ')}</span>
-                    <span className="font-mono text-xs text-graphite">
-                      {new Date(e.timestamp).toLocaleTimeString()}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
           </CardContent>
         </Card>
 

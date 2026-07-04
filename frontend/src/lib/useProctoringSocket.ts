@@ -9,6 +9,7 @@ export const NON_FOCUSED_STATES = new Set(['distracted', 'absent', 'drowsy', 'mu
 
 export interface ProctoringSocketOptions {
   roomId?: string;
+  token?: string;
   onStatus?: (status: WSStatus) => void;
   onMessage?: (msg: unknown) => void;
 }
@@ -40,6 +41,7 @@ export function useProctoringSocket() {
     lastFlagTimeRef.current = 0;
 
     const params = new URLSearchParams();
+    if (options?.token) params.set('token', options.token);
     if (options?.roomId) params.set('room_id', options.roomId);
     const displayName = options?.roomId ? sessionStorage.getItem('exam_display_name') : null;
     if (displayName) params.set('display_name', displayName);

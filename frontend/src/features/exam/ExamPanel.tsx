@@ -22,6 +22,7 @@ export function ExamPanel() {
     currentQuestionIndex,
     timeRemaining,
     events,
+    serverResults,
     submittedAt,
     correctCount,
     totalQuestions,
@@ -298,9 +299,7 @@ export function ExamPanel() {
         {state === 'results' && submittedAt && (
           <div className="h-full overflow-y-auto stamp-in">
             <ResultsScreen
-              answers={answers}
-              events={events}
-              submittedAt={submittedAt}
+              results={serverResults}
               reportHash={reportHash}
               hashLoading={hashLoading}
               serverVerified={serverVerified}
