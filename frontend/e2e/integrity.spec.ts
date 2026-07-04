@@ -12,9 +12,12 @@ type FlagEvent = { event_type: string; timestamp_s: number; confidence: number }
  * PATCH /api/sessions/{id} both reject an `events` field by design
  * (see backend/models/session.py: SessionCreate/SessionUpdate, extra="forbid").
  */
-async function seedEvents(sessionId: string, events: FlagEvent[]): Promise<void> {
+async function seedEvents(sessionId: string, events: FlagEvent[], wsToken?: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const ws = new WebSocket(`${WS_BASE}/ws/${sessionId}`);
+    const url = wsToken
+      ? `${WS_BASE}/ws/${sessionId}?token=${wsToken}`
+      : `${WS_BASE}/ws/${sessionId}`;
+    const ws = new WebSocket(url);
     ws.on('open', () => {
       for (const ev of events) {
         ws.send(JSON.stringify({ type: 'flag', ...ev }));
@@ -28,6 +31,7 @@ async function seedEvents(sessionId: string, events: FlagEvent[]): Promise<void>
 
 test.describe('Integrity & Tampering Resistance', () => {
   let sessionId: string;
+  let wsToken: string;
 
   test.beforeAll(async ({ request }) => {
     const createRes = await request.post(`${API_BASE}/api/sessions`, {
@@ -40,12 +44,13 @@ test.describe('Integrity & Tampering Resistance', () => {
     expect(createRes.status()).toBe(201);
     const body = await createRes.json();
     sessionId = body.id;
+    wsToken = body.ws_token;
 
     await seedEvents(sessionId, [
       { event_type: 'focused', timestamp_s: 0.0, confidence: 0.95 },
       { event_type: 'focused', timestamp_s: 1.0, confidence: 0.94 },
       { event_type: 'distracted', timestamp_s: 2.0, confidence: 0.80 },
-    ]);
+    ], wsToken);
   });
 
   test('server computes a signed verdict from raw events', async ({ request }) => {
@@ -86,7 +91,7 @@ test.describe('Integrity & Tampering Resistance', () => {
     const hashRes = await request.get(`${API_BASE}/api/verify/${sessionId}`);
     const { hash: originalHash } = await hashRes.json();
 
-    await seedEvents(sessionId, [{ event_type: 'focused', timestamp_s: 999, confidence: 1.0 }]);
+    await seedEvents(sessionId, [{ event_type: 'focused', timestamp_s: 999, confidence: 1.0 }], wsToken);
     await request.get(`${API_BASE}/api/sessions/${sessionId}/report`);
 
     const verifyTampered = await request.post(`${API_BASE}/api/verify`, {
