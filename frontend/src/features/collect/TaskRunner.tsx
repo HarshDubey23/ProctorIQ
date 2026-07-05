@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
+import { useDetection } from '../selftest/useDetection';
 
 interface TaskRunnerProps {
   task: { id: string; label: string; seconds: number; prompt: string };
@@ -12,8 +13,13 @@ export function TaskRunner({ task, progress, onClipRecorded }: TaskRunnerProps) 
   const [done, setDone] = useState(false);
   const framesRef = useRef<number[][]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // real landmark stream — same bridge the exam self-test uses
+  const { landmarks } = useDetection(videoRef, { enabled: true });
+
+  // camera stream: mount once for the whole session, not per task
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
       .then(stream => {
@@ -27,13 +33,31 @@ export function TaskRunner({ task, progress, onClipRecorded }: TaskRunnerProps) 
     };
   }, []);
 
+  // Bug B fix: reset per-task UI state whenever the task changes
+  useEffect(() => {
+    setRecording(false);
+    setCountdown(3);
+    setDone(false);
+    framesRef.current = [];
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (cdTimerRef.current) clearInterval(cdTimerRef.current);
+  }, [task.id]);
+
+  // Bug A fix: actually accumulate landmarks while recording.
+  // Drop z — the model was trained on (x, y) only, 468*2 = 936 per frame.
+  useEffect(() => {
+    if (recording && landmarks) {
+      framesRef.current.push(landmarks.flatMap(([x, y]) => [x, y]));
+    }
+  }, [landmarks, recording]);
+
   const startRecording = () => {
     framesRef.current = [];
     setCountdown(3);
-    const cd = setInterval(() => {
+    cdTimerRef.current = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
-          clearInterval(cd);
+          if (cdTimerRef.current) clearInterval(cdTimerRef.current);
           beginCapture();
           return 0;
         }
@@ -51,9 +75,7 @@ export function TaskRunner({ task, progress, onClipRecorded }: TaskRunnerProps) 
         if (timerRef.current) clearInterval(timerRef.current);
         setRecording(false);
         setDone(true);
-        const landmarks = framesRef.current;
-        onClipRecorded(landmarks, task.seconds);
-        return;
+        onClipRecorded(framesRef.current, task.seconds);
       }
     }, 100);
   };
