@@ -1,18 +1,21 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import cast
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.core.room_store import InMemoryRoomStore
+from backend.core.room_store import InMemoryRoomStore, SqliteRoomStore
 
 router = APIRouter()
 
 _room_sockets: dict[str, set[WebSocket]] = {}
+_room_sockets_lock = asyncio.Lock()
+_RoomStoreType = InMemoryRoomStore | SqliteRoomStore
 
 
-async def broadcast_room_update(room_id: str, store: InMemoryRoomStore) -> None:
+async def broadcast_room_update(room_id: str, store: _RoomStoreType) -> None:
     room = await store.get_room(room_id)
     if room is None:
         return
@@ -35,20 +38,22 @@ async def broadcast_room_update(room_id: str, store: InMemoryRoomStore) -> None:
         "duration_minutes": room.duration_minutes,
         "members": members,
     }
-    sockets = _room_sockets.get(room_id, set())
+    async with _room_sockets_lock:
+        sockets = _room_sockets.get(room_id, set()).copy()
     stale: set[WebSocket] = set()
     for ws in sockets:
         try:
             await ws.send_json(payload)
         except Exception:
             stale.add(ws)
-    sockets -= stale
-    _room_sockets[room_id] = sockets
+    if stale:
+        async with _room_sockets_lock:
+            _room_sockets[room_id] -= stale
 
 
 @router.websocket("/ws/room/{room_id}")
 async def room_ws(websocket: WebSocket, room_id: str) -> None:
-    store: InMemoryRoomStore = cast(InMemoryRoomStore, websocket.app.state.room_store)
+    store: _RoomStoreType = cast(_RoomStoreType, websocket.app.state.room_store)
     room = await store.get_room(room_id)
     if room is None:
         await websocket.close(code=4004, reason="Room not found")
@@ -59,7 +64,8 @@ async def room_ws(websocket: WebSocket, room_id: str) -> None:
         return
 
     await websocket.accept()
-    _room_sockets.setdefault(room_id, set()).add(websocket)
+    async with _room_sockets_lock:
+        _room_sockets.setdefault(room_id, set()).add(websocket)
 
     initial_room = await store.get_room(room_id)
     if initial_room:
@@ -94,4 +100,5 @@ async def room_ws(websocket: WebSocket, room_id: str) -> None:
     except Exception:
         pass
     finally:
-        _room_sockets.get(room_id, set()).discard(websocket)
+        async with _room_sockets_lock:
+            _room_sockets.get(room_id, set()).discard(websocket)
