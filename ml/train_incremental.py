@@ -120,19 +120,36 @@ def ingest_new_batches(new_batch: str | None) -> None:
             continue
         label = label_dir.name
         for clip_file in sorted(label_dir.iterdir()):
-            if clip_file.suffix not in (".npy", ".csv"):
+            if clip_file.suffix not in (".npy", ".csv", ".json"):
                 continue
-            clip_hash = hashlib.sha256(clip_file.read_bytes()).hexdigest()
+
+            if clip_file.suffix == ".json":
+                data = json.loads(clip_file.read_text())
+                landmarks = data.get("landmarks", [])
+                if len(landmarks) < 15:
+                    print(f"  Skipping {clip_file.name}: too few frames ({len(landmarks)})")
+                    continue
+                if any(len(f) != 936 for f in landmarks):
+                    print(f"  Skipping {clip_file.name}: bad frame width")
+                    continue
+                clip_bytes = json.dumps(landmarks).encode()
+                clip_contributor = data.get("contributor_id", contributor)
+            else:
+                clip_bytes = clip_file.read_bytes()
+                clip_contributor = contributor
+
+            clip_hash = hashlib.sha256(clip_bytes).hexdigest()
             if clip_hash in existing_hashes:
                 print(f"  Skipping duplicate: {clip_file.name}")
                 continue
             manifest[clip_hash] = {
                 "label": label,
                 "batch": new_batch,
-                "contributor": contributor,
+                "contributor": clip_contributor,
+                "source_type": "json" if clip_file.suffix == ".json" else "npy",
                 "split": "train",
             }
-            print(f"  Added {clip_file.name} -> {label} (contributor: {contributor})")
+            print(f"  Added {clip_file.name} -> {label} (contributor: {clip_contributor})")
 
     # Stratified split: 80% train, 10% val, 10% test for NEW clips
     new_hashes = [h for h in manifest if h not in existing_hashes]

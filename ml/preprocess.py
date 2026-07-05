@@ -66,26 +66,27 @@ def main() -> None:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    raw_files = sorted(raw_dir.glob("*.npy"))
-    if not raw_files:
-        print(f"No raw .npy files found in {raw_dir.resolve()}")
-        return
-
     aug_files = sorted(aug_dir.glob("*.npy")) if aug_dir.exists() else []
 
     all_clips: dict[str, np.ndarray] = {}
     clip_labels: dict[str, str] = {}
     clip_is_aug: dict[str, bool] = {}
 
-    for fpath in raw_files:
-        name = fpath.stem
-        clip = np.load(str(fpath)).astype(np.float32)
-        if clip.shape[0] < args.min_frames:
-            print(f"  Skipping {name}: {clip.shape[0]} frames < {args.min_frames}")
+    from ml.data.loaders import iter_raw_clips
+
+    raw_count = 0
+    for clip_arr, label, source_id in iter_raw_clips(raw_dir):
+        if clip_arr.shape[0] < args.min_frames:
+            print(f"  Skipping {source_id}: {clip_arr.shape[0]} frames < {args.min_frames}")
             continue
-        all_clips[name] = clip
-        clip_labels[name] = label_from_filename(name)
-        clip_is_aug[name] = False
+        all_clips[source_id] = clip_arr
+        clip_labels[source_id] = label
+        clip_is_aug[source_id] = False
+        raw_count += 1
+
+    if raw_count == 0:
+        print(f"No raw clips found in {raw_dir.resolve()}")
+        return
 
     for fpath in aug_files:
         name = fpath.stem
@@ -97,7 +98,7 @@ def main() -> None:
         clip_labels[name] = label_from_filename(name)
         clip_is_aug[name] = True
 
-    print(f"Loaded {len(all_clips)} clips ({len(raw_files)} raw, {len(aug_files)} augmented)")
+    print(f"Loaded {len(all_clips)} clips ({raw_count} raw, {len(aug_files)} augmented)")
 
     raw_clip_names = [n for n, a in clip_is_aug.items() if not a]
     aug_clip_names = [n for n, a in clip_is_aug.items() if a]
