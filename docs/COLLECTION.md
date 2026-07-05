@@ -52,8 +52,10 @@ git checkout main  # return to main branch
 ### Integrate Into Training
 
 ```bash
-# 1. Move raw clips into data/raw/
-cp -r ml/data/raw/* ml/data/raw/
+# 1. Pull collected clips from the collected-data branch
+git fetch origin collected-data
+git checkout collected-data -- ml/data/raw
+git checkout main
 
 # 2. Process all data (new + existing)
 python ml/preprocess.py
@@ -85,7 +87,9 @@ python collect.py --label absent --clips 10 --duration 5
 # Use a different camera
 python collect.py --label focused --device 1
 
-# Collected files saved to data/raw/<timestamp>_<label>/
+# Output is flat: data/raw/<label>_<n>.npy (sequential numbering)
+# Use --tag <name> to create a subfolder for your clips,
+# e.g. --tag priya → data/raw/priya/<label>_<n>.npy
 ```
 
 ### Tips
