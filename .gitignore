@@ -23,6 +23,8 @@ ml/data/ablation/
 backend_error.log
 backend_server.log
 diff_output.txt
+LINKEDIN.md
+AGENTS.md
 frontend/playwright-report/
 frontend/test-results/
 ml/checkpoints/*.pt
