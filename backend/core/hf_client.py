@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
 
@@ -8,6 +9,8 @@ import httpx
 from pydantic import ValidationError
 
 from backend.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 from backend.models.paper import (
     PaperGenerationChatAskResponse,
     PaperGenerationChatGenerateResponse,
@@ -118,9 +121,23 @@ def _parse_questions(raw_questions: Any) -> list[Question]:
     for i, question in enumerate(raw_questions):
         if isinstance(question, dict):
             question.setdefault("id", f"gen_{i}")
+            question["id"] = str(question["id"])
+            if "correct_answer" in question and not isinstance(question["correct_answer"], str):
+                question["correct_answer"] = str(question["correct_answer"])
+            if "marks" in question:
+                question["marks"] = float(question["marks"])
+            if "negative_marks" in question:
+                question["negative_marks"] = float(question["negative_marks"])
+            if "difficulty" in question and isinstance(question["difficulty"], str):
+                question["difficulty"] = question["difficulty"].lower()
+            if "type" in question and isinstance(question["type"], str):
+                question["type"] = question["type"].lower()
+            if "options" in question and isinstance(question["options"], list):
+                question["options"] = [str(o) if not isinstance(o, str) else o for o in question["options"]]
             try:
                 questions.append(Question(**question))
-            except ValidationError:
+            except ValidationError as exc:
+                logger.warning("Skipping invalid question: %s", exc.errors())
                 continue
     return questions
 
