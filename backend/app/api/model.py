@@ -16,6 +16,7 @@ router = APIRouter(prefix="/ml", tags=["ml"])
 
 REGISTRY_PATH = Path(__file__).resolve().parent.parent.parent.parent / "ml" / "checkpoints" / "registry.json"
 HISTORY_DIR = Path(__file__).resolve().parent.parent.parent.parent / "ml" / "checkpoints" / "runs"
+BENCHMARK_REPORT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "ml" / "checkpoints" / "benchmark_report.json"
 
 
 def _load_registry() -> dict[str, Any]:
@@ -37,6 +38,18 @@ def _load_history(run_id: str) -> list[dict[str, Any]]:
     except (json.JSONDecodeError, OSError):
         return []
     return loaded if isinstance(loaded, list) else []
+
+
+@router.get("/benchmark")
+async def get_benchmark_report() -> dict[str, Any]:
+    if not BENCHMARK_REPORT_PATH.exists():
+        return {"available": False}
+    try:
+        data: dict[str, Any] = json.loads(BENCHMARK_REPORT_PATH.read_text())
+        data["available"] = True
+        return data
+    except (json.JSONDecodeError, OSError):
+        return {"available": False}
 
 
 @router.get("/registry")

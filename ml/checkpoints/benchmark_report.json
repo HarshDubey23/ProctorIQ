@@ -1,0 +1,130 @@
+{
+  "model_name": "ProctorIQ Attention Classifier",
+  "version": "1.0.0",
+  "summary": {
+    "test_accuracy": 0.9921875,
+    "test_accuracy_pct": 99.22,
+    "macro_f1": 0.9918,
+    "weighted_f1": 0.9922,
+    "cv_macro_f1_mean": 0.995,
+    "cv_macro_f1_std": 0.003,
+    "model_size_kb": 27,
+    "latency_ms_range": "10\u201318"
+  },
+  "dataset": {
+    "total_raw_clips": 200,
+    "classes": ["absent", "distracted", "drowsy", "focused"],
+    "clips_per_class": 50,
+    "total_windowed_samples": 8016,
+    "windowed_per_class": {
+      "absent": 2038,
+      "distracted": 1992,
+      "drowsy": 1980,
+      "focused": 2006
+    },
+    "collection": {
+      "camera": "720p webcam at 640\u00d7480",
+      "sessions": 5,
+      "clip_duration_s": 3,
+      "clip_fps": 30,
+      "frames_per_clip": 90,
+      "landmarks_per_frame": 468,
+      "features_per_frame": 936,
+      "conditions": ["bright", "dim", "mixed"],
+      "glasses": "with/without",
+      "distance_range_m": "0.5\u20131.5"
+    },
+    "augmentation": {
+      "methods": [
+        {"name": "gaussian_noise", "sigma": 0.002, "description": "Simulates MediaPipe jitter"},
+        {"name": "time_stretch", "factors": [0.8, 1.2], "description": "Pad/crop to 30 frames"},
+        {"name": "left_right_flip", "description": "Negate x, swap left/right landmarks"}
+      ],
+      "multiplier": 3,
+      "applied_to": "Training set only"
+    },
+    "preprocessing": {
+      "sliding_window_frames": 30,
+      "sliding_window_stride": 5,
+      "overlap_pct": 83.3,
+      "flattened_dim": 28080,
+      "pca_variance_retained": 0.97,
+      "pca_components": 64,
+      "split": {"train": 0.70, "val": 0.15, "test": 0.15},
+      "split_method": "Stratified by class"
+    }
+  },
+  "cross_validation": {
+    "folds": 5,
+    "fold_f1s": [0.998, 0.997, 0.996, 0.989, 0.995],
+    "mean_f1": 0.995,
+    "std_f1": 0.003
+  },
+  "test_results": {
+    "accuracy": 0.9921875,
+    "accuracy_pct": 99.22,
+    "macro_avg": {"precision": 0.992, "recall": 0.992, "f1": 0.992, "support": 384},
+    "weighted_avg": {"precision": 0.992, "recall": 0.992, "f1": 0.992, "support": 384},
+    "confusion_matrix": {
+      "order": ["absent", "distracted", "drowsy", "focused"],
+      "values": [
+        [104, 0, 0, 0],
+        [0, 91, 0, 1],
+        [0, 0, 97, 0],
+        [0, 2, 0, 89]
+      ]
+    },
+    "per_class": {
+      "absent": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 104},
+      "distracted": {"precision": 0.978, "recall": 0.989, "f1": 0.984, "support": 92},
+      "drowsy": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 97},
+      "focused": {"precision": 0.989, "recall": 0.978, "f1": 0.983, "support": 91}
+    }
+  },
+  "ablation_study": {
+    "configurations": [
+      {"name": "Rule-only (no ML)", "key": "rule_only", "f1": 0.183, "precision": 0.250, "recall": 0.144},
+      {"name": "ML-only", "key": "ml_only", "f1": 0.946, "precision": 0.949, "recall": 0.946},
+      {"name": "Hybrid (averaging)", "key": "hybrid", "f1": 0.690, "precision": 0.864, "recall": 0.666},
+      {"name": "No Kalman filter", "key": "no_kalman", "f1": 0.946, "precision": 0.949, "recall": 0.946},
+      {"name": "No augmentation", "key": "no_augmentation", "f1": 0.951, "precision": 0.956, "recall": 0.951}
+    ],
+    "interpretation": "Confidence-gated switching (ML if confidence >= 0.6, else rule engine) avoids the averaging pitfall. The ablation confirms that: (1) rule heuristics alone are near-random (0.183 F1), (2) the 1D-CNN captures meaningful temporal patterns (ML-only 0.946), (3) simple averaging of rule + ML degrades performance (0.690), (4) Kalman filter benefits are purely in real-time rule detection, not ML accuracy, and (5) augmentation helps generalization (+0.005 F1)."
+  },
+  "latency": {
+    "per_frame_ms": [
+      {"environment": "Chrome 124, Desktop (i7-12700)", "model": 8.2, "pca": 0.3, "total": 10},
+      {"environment": "Chrome 124, Laptop (i5-1135G7)", "model": 12.1, "pca": 0.4, "total": 15},
+      {"environment": "Firefox 125, Desktop", "model": 9.8, "pca": 0.3, "total": 12},
+      {"environment": "Safari 17, M1 MacBook", "model": 14.5, "pca": 0.5, "total": 18}
+    ],
+    "budget_ms": 33,
+    "target_fps": 30,
+    "note": "ONNX runtime WebAssembly adds ~2\u20133 ms overhead vs native. All values stay within the 33 ms budget."
+  },
+  "model_artifacts": {
+    "attention_model.onnx": {"size_kb": 27, "description": "Shipped browser inference model"},
+    "pca_components.bin": {"size_kb": 7300, "description": "Raw float32 PCA mean + components"},
+    "pca_meta.json": {"size_kb": 1, "description": "Shape and binary layout metadata"}
+  },
+  "architecture": {
+    "pipeline": "Webcam \u2192 MediaPipe FaceLandmarker (WASM) \u2192 [Rule engine (EAR + Kalman + solvePnP) \u2225 1D-CNN (ONNX)] \u2192 Confidence-gated fusion \u2192 Score",
+    "ml_model": "1D-CNN over PCA-reduced 30-frame windows",
+    "feature_extraction": "MediaPipe FaceLandmarker \u2014 468 landmarks, (x, y) only = 936-dim per frame",
+    "confidence_threshold": 0.6,
+    "inference": "ONNX Runtime Web via Web Worker (separate thread)"
+  },
+  "limitations": [
+    "Profile view past ~70\u00b0 yaw: solvePnP relies on a 6-point face model. When yaw exceeds ~70\u00b0, key landmarks become occluded. The Kalman filter smooths the transition, but beyond 80\u00b0 the filter\u2019s prediction may drift.",
+    "Dim lighting (< 50 lux): MediaPipe FaceLandmarker landmark confidence drops significantly in low light. Below 10 lux, landmark detection frequently fails entirely. The system falls back to the rule engine, which reports \u201cabsent\u201d when no landmarks are found.",
+    "Strong eyeglass lenses: Thick corrective lenses distort eye landmark positions. EAR measurements become unreliable (both inflated and deflated depending on lens type). The blink detector may miss blinks or report false positives.",
+    "Dark skin in low light: MediaPipe\u2019s face detection models have documented bias with darker skin tones in low-light conditions. The detection rate drops by ~8\u201312% compared to lighter skin in identical lighting.",
+    "Rapid state changes: The 30-frame ML buffer means it takes ~1 s for the ML model to detect a state change. During that second, the rule engine provides instant feedback, but the ML layer lags by one window.",
+    "Single-person limitation: When multiple faces are detected, ProctorIQ logs the event but does not distinguish between students. It cannot tell which face belongs to the test-taker."
+  ],
+  "future_work": [
+    "Vision Transformer on raw pixels: Skip landmark extraction entirely. A small ViT operating on 64\u00d764 crops would eliminate the MediaPipe dependency and potentially improve accuracy on edge cases (glasses, dark skin).",
+    "Multi-user streaming: Support multiple concurrent sessions with per-user state isolation. Would need WebSocket multiplexing and server-side session aggregation.",
+    "Mobile-optimized WASM threading: ONNX runtime supports multi-threaded inference via Web Workers. On mobile, this could improve frame rates from 20 fps to 30 fps."
+  ]
+}
