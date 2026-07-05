@@ -5,7 +5,7 @@ import json
 from datetime import date, datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.core.collect_store import CollectStore, _get_collect_store
 from backend.core.github_commit import (
@@ -27,6 +27,7 @@ MAX_LANDMARK_BYTES = 200_000
 @router.post("/clip", status_code=201, response_model=ClipAccepted)
 async def submit_clip(
     body: ClipSubmission,
+    request: Request,
     store: CollectStore = Depends(_get_collect_store),
 ) -> ClipAccepted:
     if not get_collect_github_token():
@@ -68,6 +69,9 @@ async def submit_clip(
     except CollectionUnavailableError as exc:
         raise HTTPException(503, "Data collection is temporarily unavailable") from exc
     await store.record_accepted(body.contributor_id, clip_hash)
+
+    if hasattr(request.app.state, "training_queue"):
+        await request.app.state.training_queue.on_clip_accepted()
 
     return ClipAccepted(
         clip_hash=clip_hash,

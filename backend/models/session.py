@@ -34,6 +34,11 @@ class BenchmarkResult(BaseModel):
     total_events: int
 
 
+class StudentAnswer(BaseModel):
+    question_id: str
+    selected_answer: str | None
+
+
 class Session(BaseModel):
     model_config = ConfigDict(frozen=False)
 
@@ -41,6 +46,7 @@ class Session(BaseModel):
     start: datetime
     end: datetime | None = None
     mode: str
+    student_answers: list[StudentAnswer] = Field(default_factory=list)
     quiz_score: float | None = Field(
         default=None,
         description="Exam correctness percentage (e.g. 80 for 80%) — set client-side, not an integrity metric",

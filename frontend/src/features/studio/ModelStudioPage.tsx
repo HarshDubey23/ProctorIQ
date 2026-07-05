@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import { useState, useCallback } from "react";
 import {
-  Sparkles, Bot, Loader2, Cpu, Plus, Trash2, FileText,
+  Sparkles, Bot, Loader2, Plus, Trash2, FileText,
   BarChart3, Send, Stamp
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { Question } from "../builder/types";
 import { QUESTION_TYPE_LABELS } from "../builder/types";
+import { LiveTrainingDashboard } from "./LiveTrainingDashboard";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -20,31 +20,6 @@ interface ApiQuestion {
   difficulty?: string;
   options?: string[];
   correct_answer?: string;
-}
-
-interface HistoryEntry {
-  epoch: number;
-  train_loss: number;
-  val_loss: number;
-  train_acc: number;
-  val_acc: number;
-}
-
-interface TrainingRun {
-  run_id: string;
-  cv_f1: number | null;
-  test_f1: number | null;
-  epochs: number;
-  accuracy: number | null;
-  timestamp: string;
-  history: HistoryEntry[];
-}
-
-interface TrainingStatus {
-  runs: TrainingRun[];
-  latest_run_id: string | null;
-  latest_history: HistoryEntry[];
-  available: boolean;
 }
 
 interface ChatMessage {
@@ -66,29 +41,6 @@ export function ModelStudioPage() {
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard" | "mixed">("medium");
   const [questionCount, setQuestionCount] = useState(5);
   const [myQuestions, setMyQuestions] = useState<Question[]>([]);
-
-  // Training state
-  const [status, setStatus] = useState<TrainingStatus | null>(null);
-  const [trainingLoading, setTrainingLoading] = useState(true);
-  const [trainingError, setTrainingError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchTrainingStatus();
-  }, []);
-
-  const fetchTrainingStatus = async () => {
-    setTrainingLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/model/training-status`);
-      if (!res.ok) throw new Error("Failed to load training data");
-      const data: TrainingStatus = await res.json();
-      setStatus(data);
-    } catch (e) {
-      setTrainingError(e instanceof Error ? e.message : "Unknown error");
-    } finally {
-      setTrainingLoading(false);
-    }
-  };
 
   const handleGenerateQuestions = useCallback(async () => {
     if (!subject.trim()) return;
@@ -210,8 +162,6 @@ When generating questions, output them in a JSON code block:
     setMyQuestions((prev) => prev.filter((q) => q.id !== id));
   };
 
-  const latestRun = status?.runs?.find((r) => r.run_id === status.latest_run_id) ?? status?.runs?.[status.runs.length - 1];
-
   return (
     <main className="min-h-screen bg-paper text-ink">
       <div className="mx-auto flex h-screen max-w-[1400px] flex-col">
@@ -234,7 +184,7 @@ When generating questions, output them in a JSON code block:
               onClick={() => setActiveTab("train")}
               className={`px-3 py-1 font-label text-label border-[2px] border-ink ${activeTab === "train" ? "bg-ink text-paper" : "bg-paper text-ink"}`}
             >
-              <Cpu size={14} className="inline mr-1" /> Model Training
+              <BarChart3 size={14} className="inline mr-1" /> Training
             </button>
           </div>
         </div>
@@ -331,51 +281,7 @@ When generating questions, output them in a JSON code block:
                 </div>
               </>
             ) : (
-              /* Training Tab */
-              <div className="flex-1 overflow-y-auto p-4">
-                <h2 className="font-display text-base uppercase mb-4">Model Training</h2>
-                {trainingLoading ? (
-                  <p className="font-body text-sm text-graphite">Loading training data...</p>
-                ) : trainingError ? (
-                  <p className="font-body text-sm text-stamp">{trainingError}</p>
-                ) : !status?.available ? (
-                  <div>
-                    <p className="font-body text-sm text-graphite mb-4">No training runs found.</p>
-                    <div className="border-[3px] border-ink bg-paper-2 p-4">
-                      <p className="font-body text-xs text-graphite mb-2">Train the model using the ML scripts:</p>
-                      <code className="block bg-ink text-paper px-2 py-1 font-mono text-xs mb-2">python ml/train.py --epochs 8</code>
-                      <p className="font-body text-xs text-graphite">Or use the Training Studio at <a href="/studio" className="underline text-ochre">/studio</a>.</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid gap-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <MetricCard label="CV F1" value={latestRun?.cv_f1} />
-                      <MetricCard label="Test F1" value={latestRun?.test_f1} />
-                      <MetricCard label="Accuracy" value={latestRun?.accuracy ? `${(latestRun.accuracy * 100).toFixed(1)}%` : "-"} />
-                      <MetricCard label="Epochs" value={latestRun?.epochs} />
-                    </div>
-                    {status.latest_history.length > 0 && (
-                      <div className="border-[2px] border-ink bg-paper p-3">
-                        <h3 className="font-label text-label text-graphite mb-2">Loss</h3>
-                        <ResponsiveContainer width="100%" height={150}>
-                          <LineChart data={status.latest_history}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="epoch" fontSize={10} />
-                            <YAxis fontSize={10} />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="train_loss" stroke="#2F5D50" name="Train" dot={false} strokeWidth={2} />
-                            <Line type="monotone" dataKey="val_loss" stroke="#9B2D20" name="Val" dot={false} strokeWidth={2} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    )}
-                  </div>
-                )}
-                <Button variant="default" onClick={fetchTrainingStatus} className="mt-4 text-xs">
-                  <BarChart3 size={12} /> Refresh Status
-                </Button>
-              </div>
+              <LiveTrainingDashboard />
             )}
           </div>
 
@@ -441,14 +347,5 @@ When generating questions, output them in a JSON code block:
         </div>
       </div>
     </main>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="border-[2px] border-ink bg-paper p-3">
-      <p className="font-label text-[10px] text-graphite uppercase">{label}</p>
-      <p className="font-heading text-base text-ink mt-1">{value != null ? value : "-"}</p>
-    </div>
   );
 }

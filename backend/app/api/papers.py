@@ -3,9 +3,9 @@ from __future__ import annotations
 import secrets
 import time
 from datetime import date
-from typing import cast
+from typing import Any, cast
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from backend.core.host_store import InMemoryHostStore
@@ -22,12 +22,15 @@ from backend.models.paper import (
     PaperGenerationChatResponse,
     PaperGenerationRequest,
     PaperGenerationResponse,
+    PaperReviewResponse,
     PaperSection,
     PublicPaper,
     Question,
     QuestionType,
+    ReviewQuestion,
     to_public,
 )
+from backend.models.session import StudentAnswer
 
 router = APIRouter(prefix="/papers", tags=["papers"])
 _generate_rate_limits: dict[str, list[float]] = {}
@@ -186,6 +189,59 @@ async def get_public_paper(
     if paper is None:
         raise HTTPException(404, "Paper not found")
     return to_public(paper)
+
+
+def _get_session_store(request: Request) -> Any:
+    from backend.core.session_store import InMemorySessionStore
+    return cast(InMemorySessionStore, request.app.state.session_store)
+
+
+def _get_room_store(request: Request) -> Any:
+    from backend.core.room_store import InMemoryRoomStore
+    return cast(InMemoryRoomStore, request.app.state.room_store)
+
+
+def _answers_map(
+    answers: list[StudentAnswer],
+) -> dict[str, str | None]:
+    return {a.question_id: a.selected_answer for a in answers}
+
+
+@router.get("/{paper_id}/review")
+async def get_paper_review(
+    paper_id: str,
+    student_token: str = Query(...),
+    store: InMemoryPaperStore = Depends(_get_paper_store),
+    session_store: Any = Depends(_get_session_store),
+    room_store: Any = Depends(_get_room_store),
+) -> PaperReviewResponse:
+    paper = await store.get(paper_id)
+    if paper is None:
+        raise HTTPException(404, "Paper not found")
+
+    room = await room_store.get_room_for_session(student_token)
+    if room is None or room.paper_id != paper_id:
+        raise HTTPException(403, "Session not associated with this paper")
+
+    session = await session_store.get_session(student_token)
+    if session is None:
+        raise HTTPException(404, "Session not found")
+
+    if session.end is None:
+        raise HTTPException(403, "Review available after the exam ends")
+
+    answers = _answers_map(session.student_answers)
+    return PaperReviewResponse(
+        questions=[
+            ReviewQuestion(
+                id=q.id,
+                body=q.body,
+                correct_answer=q.correct_answer,
+                student_answer=answers.get(q.id),
+            )
+            for q in paper.questions
+        ]
+    )
 
 
 @router.get("")

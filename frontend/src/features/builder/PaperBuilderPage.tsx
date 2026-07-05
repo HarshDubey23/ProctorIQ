@@ -189,6 +189,14 @@ export function PaperBuilderPage() {
     }
   }, [handleAddQuestion]);
 
+  const handleRemoveAIGenerated = useCallback((questionId: string) => {
+    setQuestionBank((prev) => prev.filter((q) => q.id !== questionId));
+    setSections((prev) => prev.map((s) => ({
+      ...s,
+      questionIds: s.questionIds.filter((id) => id !== questionId),
+    })));
+  }, []);
+
   const handleTemplateSelect = useCallback((questions: Question[]) => {
     setQuestionBank((prev) => [...prev, ...questions]);
     for (const q of questions) {
@@ -287,9 +295,6 @@ export function PaperBuilderPage() {
               <h1 className="font-display text-xl uppercase">Paper Builder</h1>
             </div>
             <div className="flex items-center gap-3">
-              <a href="/studio" className="flex items-center gap-1 border-[2px] border-ink px-2 py-1 font-label text-label text-ink hover:bg-ink hover:text-paper">
-                <Bot size={14} /> AI Studio
-              </a>
               <span className="font-mono text-sm text-graphite">
                 {allTotalQuestions} questions &middot; {allTotalMarks} marks
               </span>
@@ -326,7 +331,7 @@ export function PaperBuilderPage() {
                     <FileText size={12} /> Templates
                   </button>
                 </div>
-                {showChat && <HFChatPanel onAddQuestions={handleAIDraft} paperContext={questionBank} />}
+                {showChat && <HFChatPanel onAddQuestions={handleAIDraft} onRemoveQuestion={handleRemoveAIGenerated} paperContext={questionBank} />}
                 {showTemplates && <TemplateGallery onSelectTemplate={handleTemplateSelect} />}
               </div>
 
@@ -605,6 +610,11 @@ export function PaperBuilderPage() {
                                 {q.options.map((opt, oi) => (
                                   <span key={oi} className="chip !text-[10px] !border-[1px]">{opt}</span>
                                 ))}
+                              </div>
+                            )}
+                            {q.correctAnswer && (
+                              <div className="mt-2 border-t-[1px] border-stamp/30 pt-1">
+                                <span className="chip !text-[10px] !border-[1px] border-stamp text-stamp">Answer: {q.correctAnswer}</span>
                               </div>
                             )}
                           </div>

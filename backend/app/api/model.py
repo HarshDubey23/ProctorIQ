@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import json
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
+
+from backend.core.training_queue import TrainingQueueState
+
 
 router = APIRouter(prefix="/ml", tags=["ml"])
 
@@ -69,3 +75,34 @@ async def get_ml_run_history(run_id: str) -> list[dict[str, Any]]:
 @router.get("/training-status")
 async def get_training_status() -> dict[str, Any]:
     return await get_ml_registry()
+
+
+@router.get("/training-queue-status")
+async def get_training_queue_status(request: Request) -> dict[str, Any]:
+    queue = cast(TrainingQueueState, getattr(request.app.state, "training_queue", None))
+    if queue is None:
+        return {"status": "idle", "unconsumed_clips": 0, "current_run_id": None, "retrain_batch_size": 5}
+    return await queue.get_status()
+
+
+@router.get("/training-events")
+async def training_events_sse(request: Request) -> StreamingResponse:
+    queue = cast(TrainingQueueState, getattr(request.app.state, "training_queue", None))
+    if queue is None:
+        return StreamingResponse(iter(["event: error\ndata: training queue not available\n\n"]), media_type="text/event-stream")
+
+    sub = queue.subscribe()
+
+    async def event_stream() -> AsyncIterator[str]:
+        try:
+            while True:
+                event = await asyncio.wait_for(sub.get(), timeout=30)
+                yield f"data: {event.model_dump_json()}\n\n"
+        except asyncio.TimeoutError:
+            yield ": keepalive\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            queue.unsubscribe(sub)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")

@@ -13,7 +13,7 @@ from backend.core.paper_store import InMemoryPaperStore
 from backend.core.room_store import InMemoryRoomStore
 from backend.core.session_store import InMemorySessionStore, SessionStore
 from backend.core.session_scoring import apply_server_integrity_score
-from backend.models.session import Session, SessionCreate, SessionUpdate, SessionSummary
+from backend.models.session import Session, SessionCreate, SessionUpdate, SessionSummary, StudentAnswer
 from backend.report.pdf import generate_session_pdf
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -147,6 +147,10 @@ async def submit_answers(
     total = len(paper.questions)
     quiz_score = round((correct_count / total * 100), 2) if total > 0 else 0.0
 
+    session.student_answers = [
+        StudentAnswer(question_id=a.question_id, selected_answer=a.selected_answer)
+        for a in body.answers
+    ]
     session.quiz_score = quiz_score
     session.end = datetime.now(timezone.utc)
     apply_server_integrity_score(session)

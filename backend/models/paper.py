@@ -96,6 +96,17 @@ class PaperGenerationChatGenerateResponse(BaseModel):
 
 PaperGenerationChatResponse = PaperGenerationChatAskResponse | PaperGenerationChatGenerateResponse
 
+
+class ReviewQuestion(BaseModel):
+    id: str
+    body: str
+    correct_answer: str | None
+    student_answer: str | None
+
+
+class PaperReviewResponse(BaseModel):
+    questions: list[ReviewQuestion]
+
 def to_public(paper: Paper) -> PublicPaper:
     return PublicPaper(
         id=paper.id, title=paper.title, subject=paper.subject,

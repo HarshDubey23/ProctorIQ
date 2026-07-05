@@ -13,6 +13,7 @@ from backend.core.host_store import InMemoryHostStore
 from backend.core.paper_store import InMemoryPaperStore
 from backend.core.session_store import InMemorySessionStore
 from backend.core.room_store import InMemoryRoomStore
+from backend.core.training_queue import TrainingQueueState
 
 
 async def _close_expired_rooms(store: InMemoryRoomStore) -> None:
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.paper_store = InMemoryPaperStore()
     app.state.accommodation_store = InMemoryAccommodationStore()
     app.state.host_store = InMemoryHostStore()
+    app.state.training_queue = TrainingQueueState()
 
     settings = get_settings()
 

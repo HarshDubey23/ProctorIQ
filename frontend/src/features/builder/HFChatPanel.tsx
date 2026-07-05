@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Bot, Loader2, Plus, Send, Settings2, User } from "lucide-react";
+import { Bot, Loader2, Send, Settings2, User, X } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { Question, QuestionType } from "./types";
 import { QUESTION_TYPE_LABELS } from "./types";
@@ -32,6 +32,7 @@ type ChatResponse =
 
 interface HFChatPanelProps {
   onAddQuestions: (questions: Question[]) => void;
+  onRemoveQuestion: (questionId: string) => void;
   paperContext?: Question[];
 }
 
@@ -67,7 +68,7 @@ function errorMessage(status: number): string {
   return "The AI service is unavailable right now.";
 }
 
-export function HFChatPanel({ onAddQuestions, paperContext = [] }: HFChatPanelProps) {
+export function HFChatPanel({ onAddQuestions, onRemoveQuestion, paperContext = [] }: HFChatPanelProps) {
   const [chat, setChat] = useState<ChatEntry[]>([
     {
       id: "welcome",
@@ -129,6 +130,10 @@ export function HFChatPanel({ onAddQuestions, paperContext = [] }: HFChatPanelPr
       }
 
       const data: ChatResponse = await response.json();
+      if (data.action === "generate") {
+        const mapped = data.questions.map(mapQuestion);
+        onAddQuestions(mapped);
+      }
       const assistantMessage: ChatEntry =
         data.action === "ask"
           ? {
@@ -275,27 +280,33 @@ export function HFChatPanel({ onAddQuestions, paperContext = [] }: HFChatPanelPr
               <p className="whitespace-pre-wrap font-body text-xs">{entry.content}</p>
               {entry.questions && entry.questions.length > 0 && (
                 <div className="mt-2 border-t-[2px] border-ink/30 pt-2">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="font-label text-[10px] text-ledger">{entry.questions.length} question(s) added to paper</span>
+                  </div>
                   <div className="grid gap-1">
                     {entry.questions.map((question) => (
-                      <div key={question.id} className="border-[1px] border-ink bg-paper-2 p-2">
-                        <div className="flex items-center gap-1">
-                          <span className="chip !border-[1px] !text-[10px]">
-                            {QUESTION_TYPE_LABELS[question.type]?.split(" ")[0] ?? question.type}
-                          </span>
-                          <span className="font-mono text-[10px] text-graphite">{question.marks} marks</span>
+                      <div key={question.id} className="flex items-start gap-1 border-[1px] border-ink bg-paper-2 p-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <span className="chip !border-[1px] !text-[10px]">
+                              {QUESTION_TYPE_LABELS[question.type]?.split(" ")[0] ?? question.type}
+                            </span>
+                            <span className="font-mono text-[10px] text-graphite">{question.marks} marks</span>
+                          </div>
+                          <p className="mt-1 font-display text-xs text-ink">{question.title}</p>
+                          <p className="mt-1 line-clamp-2 font-body text-[10px] text-graphite">{question.body}</p>
                         </div>
-                        <p className="mt-1 font-display text-xs text-ink">{question.title}</p>
-                        <p className="mt-1 line-clamp-2 font-body text-[10px] text-graphite">{question.body}</p>
+                        <button
+                          onClick={() => onRemoveQuestion(question.id)}
+                          className="shrink-0 border-[1px] border-stamp p-1 text-stamp hover:bg-stamp hover:text-paper"
+                          title="Remove from paper"
+                          aria-label={`Remove ${question.title}`}
+                        >
+                          <X size={10} />
+                        </button>
                       </div>
                     ))}
                   </div>
-                  <Button
-                    variant="default"
-                    onClick={() => onAddQuestions(entry.questions ?? [])}
-                    className="mt-2 h-auto px-2 py-1 text-[10px]"
-                  >
-                    <Plus size={10} /> Add to paper
-                  </Button>
                 </div>
               )}
             </div>
