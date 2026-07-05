@@ -7,6 +7,8 @@ onnxruntime==1.27.0
 reportlab==5.0.0
 slowapi==0.1.10
 pydantic-settings==2.14.2
+sqlmodel==0.0.22
+aiosqlite==0.21.0
 loguru==0.7.3
 python-dotenv==1.2.2
 numpy>=2.0.0

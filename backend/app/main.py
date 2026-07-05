@@ -9,16 +9,20 @@ from fastapi import FastAPI
 
 from backend.core.config import get_settings
 from backend.core.accommodation_store import InMemoryAccommodationStore
+from backend.core.database import close_db, init_db
 from backend.core.host_store import InMemoryHostStore
 from backend.core.paper_store import InMemoryPaperStore
-from backend.core.session_store import InMemorySessionStore
-from backend.core.room_store import InMemoryRoomStore
+from backend.core.room_store import InMemoryRoomStore, SqliteRoomStore
+from backend.core.session_store import InMemorySessionStore, SqliteSessionStore
 from backend.core.training_queue import TrainingQueueState
 
 
-async def _close_expired_rooms(store: InMemoryRoomStore) -> None:
+async def _close_expired_rooms(store: InMemoryRoomStore | SqliteRoomStore) -> None:
     now = datetime.now(timezone.utc)
-    room_ids = list(store._rooms.keys()) if hasattr(store, "_rooms") else []
+    if isinstance(store, (InMemoryRoomStore,)):
+        room_ids = list(store._rooms.keys())
+    else:
+        return  # SqliteRoomStore handles expiry via cleanup_stale_rooms
     for rid in room_ids:
         room = await store.get_room(rid)
         if (
@@ -32,14 +36,19 @@ async def _close_expired_rooms(store: InMemoryRoomStore) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    app.state.session_store = InMemorySessionStore()
-    app.state.room_store = InMemoryRoomStore()
+    settings = get_settings()
+
+    if settings.sqlite_path:
+        await init_db(settings.sqlite_path)
+        app.state.session_store = SqliteSessionStore()
+        app.state.room_store = SqliteRoomStore()
+    else:
+        app.state.session_store = InMemorySessionStore()
+        app.state.room_store = InMemoryRoomStore()
     app.state.paper_store = InMemoryPaperStore()
     app.state.accommodation_store = InMemoryAccommodationStore()
     app.state.host_store = InMemoryHostStore()
     app.state.training_queue = TrainingQueueState()
-
-    settings = get_settings()
 
     async def _periodic_cleanup() -> None:
         while True:
@@ -68,6 +77,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await cleanup_task
         except asyncio.CancelledError:
             pass
+        if settings.sqlite_path:
+            await close_db()
 
 
 def create_app() -> FastAPI:

@@ -29,6 +29,8 @@ class Settings(BaseSettings):
 
     rate_limit: str = "60/minute"
 
+    sqlite_path: str = ""
+
     report_signing_secret: str = "dev-secret-not-for-production"
     hf_api_token: str = ""
     hf_model_id: str = "openai/gpt-oss-120b:fastest"
