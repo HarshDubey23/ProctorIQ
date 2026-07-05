@@ -34,7 +34,7 @@ class TestCollect:
             "contributor_id": contributor_id,
             "task_id": "focused",
             "label": "focused",
-            "landmarks": [[0.5, 0.3]] * 468,
+            "landmarks": [[0.0] * 936 for _ in range(20)],
             "duration_s": 5.0,
         }
 
@@ -90,3 +90,19 @@ class TestCollect:
             assert "contributors" in data
             assert "max_contributors" in data
             assert data["max_contributors"] == 30
+
+    def test_too_few_frames_returns_422(self) -> None:
+        app = _make_app()
+        with TestClient(app) as client:
+            body = self._valid_payload()
+            body["landmarks"] = [[0.0] * 936 for _ in range(5)]  # only 5 frames, below MIN_FRAMES
+            resp = client.post("/api/collect/clip", json=body)
+            assert resp.status_code == 422
+
+    def test_wrong_frame_width_returns_422(self) -> None:
+        app = _make_app()
+        with TestClient(app) as client:
+            body = self._valid_payload()
+            body["landmarks"] = [[0.0] * 100 for _ in range(20)]  # 100 coords instead of 936
+            resp = client.post("/api/collect/clip", json=body)
+            assert resp.status_code == 422
