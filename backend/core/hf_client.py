@@ -10,7 +10,6 @@ from pydantic import ValidationError
 
 from backend.core.config import get_settings
 
-logger = logging.getLogger(__name__)
 from backend.models.paper import (
     PaperGenerationChatAskResponse,
     PaperGenerationChatGenerateResponse,
@@ -19,6 +18,8 @@ from backend.models.paper import (
     PaperGenerationRequest,
     Question,
 )
+
+logger = logging.getLogger(__name__)
 
 _API = "https://router.huggingface.co/v1/chat/completions"
 
