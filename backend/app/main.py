@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI
+from loguru import logger
 
 from backend.core.config import get_settings
 from backend.core.accommodation_store import InMemoryAccommodationStore
@@ -55,18 +56,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await asyncio.sleep(300)
             try:
                 await app.state.room_store.cleanup_stale_rooms()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("Room cleanup failed: {}", exc)
             try:
                 await app.state.session_store.cleanup_stale_sessions(
                     timeout_minutes=settings.session_timeout_minutes
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("Session cleanup failed: {}", exc)
             try:
                 await _close_expired_rooms(app.state.room_store)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("Close expired rooms failed: {}", exc)
 
     cleanup_task = asyncio.create_task(_periodic_cleanup())
     try:
