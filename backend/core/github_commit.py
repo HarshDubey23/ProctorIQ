@@ -50,6 +50,16 @@ async def commit_json_file(path: str, payload: dict[str, Any], message: str) -> 
                 import asyncio
                 await asyncio.sleep(1)
                 continue
+            if resp.status_code in (404, 422):
+                raise CollectionUnavailableError(
+                    "GitHub rejected the commit — confirm the 'collected-data' branch exists "
+                    "and COLLECT_GITHUB_REPO is correct"
+                )
+            if resp.status_code in (401, 403):
+                raise CollectionUnavailableError(
+                    "GitHub token rejected — confirm COLLECT_GITHUB_TOKEN is valid and scoped "
+                    "to Contents: Read and write on this repo"
+                )
             resp.raise_for_status()
             return
 
@@ -61,7 +71,8 @@ async def list_existing_clip_paths() -> list[str]:
     url = f"{_API}/repos/{_github_repo()}/git/trees/{_github_branch()}"
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(url, params={"recursive": "1"}, headers=_headers(token))
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            return []  # fail open — a transient read error on rehydrate shouldn't crash startup
         tree = resp.json()["tree"]
     return [
         item["path"]
