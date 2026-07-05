@@ -27,7 +27,22 @@ def parse_args() -> argparse.Namespace:
                         help="Camera device index (default: 0)")
     parser.add_argument("--output", type=str, default="data/raw",
                         help="Output directory for .npy files (default: data/raw)")
+    parser.add_argument("--tag", type=str, default=None,
+                        help="Optional contributor tag, e.g. --tag priya. Creates a "
+                             "subfolder so multiple people's clips never collide.")
     return parser.parse_args()
+
+
+def find_next_start_index(output_dir: Path, label: str) -> int:
+    """Scan existing clips for this label so re-running never overwrites previous ones."""
+    existing = output_dir.glob(f"{label}_*.npy")
+    indices = []
+    for f in existing:
+        try:
+            indices.append(int(f.stem.rsplit("_", 1)[1]))
+        except (IndexError, ValueError):
+            continue
+    return max(indices, default=0)
 
 
 def draw_overlay(frame: np.ndarray, text: str, color: tuple[int, int, int],
@@ -58,7 +73,11 @@ def run_countdown(cap: cv2.VideoCapture, seconds: int) -> bool:
 def main() -> None:
     args = parse_args()
     output_dir = Path(args.output)
+    if args.tag:
+        output_dir = output_dir / args.tag
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    start_index = find_next_start_index(output_dir, args.label)
 
     mp_face_mesh = mp.solutions.face_mesh
     face_mesh = mp_face_mesh.FaceMesh(
@@ -149,7 +168,7 @@ def main() -> None:
             print(f"Warning: Clip {clip_num} has {no_face_count}/{frame_count} frames without face. Quality may be poor.")
 
         clip_array = np.array(landmarks_buffer, dtype=np.float32)
-        clip_path = output_dir / f"{args.label}_{collected + 1:03d}.npy"
+        clip_path = output_dir / f"{args.label}_{start_index + collected + 1:03d}.npy"
         np.save(str(clip_path), clip_array)
         collected += 1
         print(f"Saved clip {collected}/{args.clips}: {clip_path} ({clip_array.shape[0]} frames)")
