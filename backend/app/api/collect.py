@@ -48,7 +48,8 @@ async def submit_clip(
     if await store.clip_count_for(body.contributor_id) >= CLIPS_PER_CONTRIBUTOR:
         raise HTTPException(409, "You've already completed all tasks. Thank you!")
 
-    clip_hash = hashlib.sha256(raw).hexdigest()
+    dedup_source = f"{body.contributor_id}:{body.task_id}:".encode() + raw
+    clip_hash = hashlib.sha256(dedup_source).hexdigest()
     if await store.has_hash(clip_hash):
         raise HTTPException(409, "Duplicate clip")
 
