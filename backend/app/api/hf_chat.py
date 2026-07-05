@@ -30,7 +30,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     model_used: str
-    usage: dict[str, int] | None = None
+    usage: dict[str, Any] | None = None
 
 
 @router.post("/chat", response_model=ChatResponse)

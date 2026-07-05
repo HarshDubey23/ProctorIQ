@@ -3,6 +3,7 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    env_file: ./backend/.env
     environment:
       - CORS_ORIGINS=["http://localhost:3000","https://proctoriq.vercel.app"]
     restart: unless-stopped
