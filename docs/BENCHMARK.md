@@ -1,5 +1,10 @@
 # Benchmark Results
 
+> **Single source of truth:** All numbers in this document are maintained in
+> [`ml/checkpoints/benchmark_report.json`](../ml/checkpoints/benchmark_report.json).
+> The [Model Card](/model) and any derived visualizations read from that file.
+> If you update a number here, update it there too.
+
 ## Data Collection Methodology
 
 Collected over 5 sessions with a 720p webcam at 640×480:

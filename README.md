@@ -10,6 +10,20 @@ Only structured attention events — never video — reach the server.
 
 ---
 
+## Key Numbers
+
+| Metric | Value |
+|--------|-------|
+| Model accuracy | **99.22%** |
+| Macro F1 | **0.9918** |
+| Cross-validation (5-fold) | **0.995 ± 0.003** |
+| Model size (ONNX) | **~27 KB** |
+| Per-frame inference | **<15 ms** (ML) / **~0.5 ms** (rules) |
+
+Full benchmark, confusion matrix, ablation study, and latency data at the [**Model Card**](/model) — or see [docs/BENCHMARK.md](docs/BENCHMARK.md) / [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
 ## The Real Problem: Tamper-Proof Exam Integrity
 
 Most proctoring demos compute the student's score in JavaScript, store it in localStorage, and send it to the server as a claim. Nothing stops the student from opening DevTools, setting `final_score = 0.95`, and downloading a pristine report.
@@ -59,11 +73,13 @@ ProctorIQ v2 introduces a complete visual overhaul and a set of production-ready
 - Camera/mic permission + calibration flow
 - **No Stamp Red, no alert flags** — student-calm guarantee
 
-### Model Card & Training Page
-- Published at `/model` with real training curves (loss/accuracy per epoch)
-- 5-fold cross-validation results table
-- Full Model Card (Google format): dataset, architecture, evaluation, limitations
-- Stamped as an official document
+### Model Card & Research Page
+- Published at [`/model`](/model) — a complete Model Card (Google format)
+- Hero stats, pipeline diagram, data collection methodology, 5-fold CV chart
+- Confusion matrix, per-class metrics, ablation study (interactive toggles)
+- Cross-device latency table, limitations, ethical considerations, future work
+- **Live demo widget** — runs the real 27 KB ONNX model in your browser
+- All numbers sourced from [`ml/checkpoints/benchmark_report.json`](ml/checkpoints/benchmark_report.json)
 
 ### Integrity Verification
 - SHA-256 HMAC-signed reports
@@ -121,18 +137,6 @@ Browser (MediaPipe WASM → ONNX Runtime Web) ──WebSocket──> FastAPI Bac
 - **Server**: Receives events → recomputes score → HMAC-SHA256 signs canonical payload → generates PDF report with embedded timeline
 - **No video stored**: The server never receives or stores video frames — only `{"event_type": "distracted", "timestamp_s": 12.5, "confidence": 0.87}`
 
-### Key Numbers
-
-| Metric | Value |
-|--------|-------|
-| Model accuracy | 99.22% |
-| Macro F1 | 0.9918 |
-| Cross-validation (5-fold) | 0.995 ± 0.003 |
-| Model size (ONNX) | ~27 KB |
-| Inference latency (ML) | <15ms in Web Worker |
-| Per-frame rule latency | ~0.5ms |
-| Kalman-filtered jitter | ±0.5° (down from ±2-3°) |
-
 Full benchmark at [docs/BENCHMARK.md](docs/BENCHMARK.md).
 
 ---
@@ -165,7 +169,13 @@ Each signed PDF report includes a SHA-256 HMAC. The verification endpoint re-com
 
 ### 6. Explore the Model
 
-Visit `/model` to see how the 1D-CNN was trained with 5-fold cross-validation, real training curves, and a full Model Card documenting every metric and limitation.
+Visit [`/model`](/model) to see the full Model Card — hero stats, pipeline diagram, data collection methodology, CV results, confusion matrix, per-class metrics, interactive ablation study, latency table, limitations, and a **live demo widget** that runs the real 27 KB ONNX model in your browser.
+
+### 7. Contribute Data
+
+Help improve the model by contributing face landmark clips at [`/collect`](/collect). Eight short webcam tasks (~3 minutes total). No video is saved — only anonymized landmark patterns are committed to the `collected-data` branch.
+
+See [docs/COLLECTION.md](docs/COLLECTION.md) for details and local collection options.
 
 ---
 
@@ -179,7 +189,8 @@ Visit `/model` to see how the 1D-CNN was trained with 5-fold cross-validation, r
 | `/host/{room_id}` | Mission Control dashboard for an existing room |
 | `/join/{room_id}` | Participant join page (no signup required) |
 | `/cohort/{room_id}` | Live cohort pulse wall |
-| `/model` | "How This Model Was Trained" + Model Card |
+| `/model` | Model Card — full research page with benchmark, charts, live demo |
+| `/collect` | Contribute face landmark clips to improve the model |
 | `/styleguide` | Visual design system reference |
 
 ---
