@@ -84,9 +84,10 @@ class TestSubmitAnswers:
             room_id = room_resp.json()["room_id"]
 
             import asyncio
+            from datetime import datetime, timezone
+
             from backend.core.room_store import InMemoryRoomStore
             from backend.models.room import RoomMember
-            from datetime import datetime, timezone
             store: InMemoryRoomStore = app.state.room_store
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -133,9 +134,10 @@ class TestSubmitAnswers:
             room_id = room_resp.json()["room_id"]
 
             import asyncio
+            from datetime import datetime, timezone
+
             from backend.core.room_store import InMemoryRoomStore
             from backend.models.room import RoomMember
-            from datetime import datetime, timezone
             store: InMemoryRoomStore = app.state.room_store
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)

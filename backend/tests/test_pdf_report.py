@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from datetime import datetime, timezone
-from backend.models.session import Session, Verdict, Event
+
+from backend.models.session import Event, Session, Verdict
 from backend.report.pdf import generate_session_pdf
 
 
@@ -30,6 +32,7 @@ def test_pdf_generation_runs() -> None:
 
 def test_verify_get_endpoint_via_client() -> None:
     from fastapi.testclient import TestClient
+
     from backend.app.main import create_app
 
     app = create_app()
@@ -44,5 +47,4 @@ def test_verify_get_endpoint_via_client() -> None:
         data = res.json()
         assert "hash" in data
         assert len(data["hash"]) == 64
-
 
