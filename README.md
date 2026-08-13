@@ -8,6 +8,10 @@ Only structured attention events — never video — reach the server.
 [![CI](https://img.shields.io/github/actions/workflow/status/HarshDubey23/ProctorIQ/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/HarshDubey23/ProctorIQ/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
+Deployment status: the frontend and API can be deployed independently. Follow
+the [deployment runbook](DEPLOYMENT.md), then replace every placeholder URL
+below with the URLs from the actual deployments.
+
 ---
 
 ## Key Numbers
@@ -105,6 +109,17 @@ docker compose up --build
 ```
 
 Open [http://localhost:3000](http://localhost:3000) (or [http://localhost:5173](http://localhost:5173) for Vite dev server).
+
+## Production Deployment Checklist
+
+- Set `ENVIRONMENT=production` and a newly generated `REPORT_SIGNING_SECRET`.
+- Set `PUBLIC_API_BASE_URL` to the public API origin used in generated reports.
+- Set `CORS_ORIGINS` to the exact frontend origin, with no trailing slash.
+- Set `VITE_API_URL` and `VITE_WS_URL` to the deployed API HTTP and WebSocket URLs.
+- Keep `STUDIO` local-only; it is not an internet-facing service.
+- Verify `/health`, a WebSocket connection, report generation, and report verification after deployment.
+
+Do not commit `.env`, API tokens, model training data, or generated secrets.
 
 ### Manual start (without Docker)
 
