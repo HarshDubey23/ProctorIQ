@@ -57,6 +57,17 @@ class TestAttentionScore:
         ]
         result = compute_attention_score(events, duration_s=10.0)
         assert result.score == pytest.approx(-0.3)
+        assert result.distracted_seconds == 1
+
+    def test_focus_uses_elapsed_seconds_not_event_count(self) -> None:
+        events = [
+            FlagEvent(event_type="distracted", timestamp_s=float(i))
+            for i in range(30)
+        ]
+        result = compute_attention_score(events, duration_s=60.0)
+
+        assert result.distracted_seconds == 30
+        assert (60 - result.distracted_seconds) / 60 * 100 == pytest.approx(50.0)
 
     def test_mixed_event_types(self) -> None:
         events = [

@@ -7,6 +7,7 @@ services:
     environment:
       - CORS_ORIGINS=["http://localhost:3000","https://proctoriq.vercel.app"]
       - SQLITE_PATH=data/proctoriq.db
+      - PUBLIC_API_BASE_URL=http://localhost:8000
     restart: unless-stopped
 
   frontend:

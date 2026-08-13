@@ -41,6 +41,7 @@ class AttentionScore:
     duration_s: float
     total_penalty: float
     event_counts: dict[str, int]
+    distracted_seconds: int
 
 
 def compute_attention_score(
@@ -54,6 +55,7 @@ def compute_attention_score(
             duration_s=0.0,
             total_penalty=0.0,
             event_counts={},
+            distracted_seconds=0,
         )
     num_buckets = max(1, math.ceil(duration_s))
     bucket_penalties: list[float] = [0.0] * num_buckets
@@ -71,6 +73,7 @@ def compute_attention_score(
         bucket_penalties[bucket_idx] += penalty
         event_counts[event.event_type] = event_counts.get(event.event_type, 0) + 1
     total_penalty = sum(bucket_penalties)
+    distracted_seconds = sum(1 for penalty in bucket_penalties if penalty != 0.0)
     score = total_penalty / float(num_buckets)
     if score > LOW_THRESHOLD:
         concern = ConcernLevel.LOW
@@ -84,4 +87,5 @@ def compute_attention_score(
         duration_s=duration_s,
         total_penalty=total_penalty,
         event_counts=event_counts,
+        distracted_seconds=distracted_seconds,
     )

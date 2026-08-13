@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 from datetime import datetime, timezone
 from typing import Any
 from reportlab.lib.pagesizes import A4
@@ -428,7 +429,7 @@ def generate_session_pdf(
         Paragraph(
             "<b>To verify this document:</b><br/>"
             "1. Visit the ProctorIQ verify portal or curl the endpoint directly:<br/>"
-            f"<font face=\"Courier\">http://localhost:8000/api/verify/{session.id}</font><br/>"
+            f"<font face=\"Courier\">{os.getenv('PUBLIC_API_BASE_URL', 'http://localhost:8000').rstrip('/')}/api/verify/{session.id}</font><br/>"
             "2. Confirm that the returned SHA-256 matches the hash printed below.<br/>"
             "3. If any field or event has been tampered with, the generated hash will fail verification.",
             styles["VerifyInstruction"]

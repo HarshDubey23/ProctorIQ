@@ -301,7 +301,7 @@ async def get_room_reports(
         else:
             verdict = Verdict.INCONCLUSIVE
 
-        focused_seconds = duration_s - sum(score_result.event_counts.values())
+        focused_seconds = max(0, duration_s - score_result.distracted_seconds)
         pct_focused = (focused_seconds / duration_s * 100) if duration_s > 0 else 0.0
 
         session.final_score = score_result.score

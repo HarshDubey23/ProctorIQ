@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     sqlite_path: str = ""
 
     report_signing_secret: str = "dev-secret-not-for-production"
+    public_api_base_url: str = "http://localhost:8000"
     hf_api_token: str = ""
     hf_model_id: str = "openai/gpt-oss-120b:fastest"
 
