@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 
 from sqlalchemy import null
@@ -92,7 +92,7 @@ class InMemorySessionStore:
 
     async def cleanup_stale_sessions(self, timeout_minutes: int = 60) -> None:
         async with self._lock:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             stale = []
             for sid, sess in self._sessions.items():
                 if sess.end is None and sess.start:
@@ -230,7 +230,7 @@ class SqliteSessionStore:
 
     async def cleanup_stale_sessions(self, timeout_minutes: int = 60) -> None:
         async with get_session() as db:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             result = await db.execute(
                 select(SessionRow).where(SessionRow.end == null())
             )

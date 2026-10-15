@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import uuid4
 
@@ -11,9 +11,15 @@ from pydantic import BaseModel
 
 from backend.core.paper_store import InMemoryPaperStore
 from backend.core.room_store import InMemoryRoomStore
-from backend.core.session_store import InMemorySessionStore, SessionStore
 from backend.core.session_scoring import apply_server_integrity_score
-from backend.models.session import Session, SessionCreate, SessionUpdate, SessionSummary, StudentAnswer
+from backend.core.session_store import InMemorySessionStore, SessionStore
+from backend.models.session import (
+    Session,
+    SessionCreate,
+    SessionSummary,
+    SessionUpdate,
+    StudentAnswer,
+)
 from backend.report.pdf import generate_session_pdf
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -55,7 +61,7 @@ async def create_session(
     store: InMemorySessionStore = Depends(_get_store),
 ) -> dict[str, Any]:
     session_id = body.id if body.id else uuid4().hex
-    start = body.start if body.start is not None else datetime.now(timezone.utc)
+    start = body.start if body.start is not None else datetime.now(UTC)
     existing = await store.get_session(session_id)
     if existing is not None:
         raise HTTPException(status_code=409, detail="Session already exists")
@@ -113,7 +119,7 @@ async def delete_session(
     blank = Session(
         id=session_id,
         start=existing.start,
-        end=datetime.now(timezone.utc),
+        end=datetime.now(UTC),
         mode=existing.mode,
     )
     await store.update_session(blank)
@@ -152,7 +158,7 @@ async def submit_answers(
         for a in body.answers
     ]
     session.quiz_score = quiz_score
-    session.end = datetime.now(timezone.utc)
+    session.end = datetime.now(UTC)
     apply_server_integrity_score(session)
     await store.update_session(session)
 

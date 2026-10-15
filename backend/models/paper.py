@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
 QuestionType = Literal["mcq-single","mcq-multi","true-false","short-answer","long-answer","numerical","code"]

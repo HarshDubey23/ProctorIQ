@@ -8,14 +8,14 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from backend.core.host_store import InMemoryHostStore
-from backend.core.paper_store import InMemoryPaperStore
 from backend.core.hf_client import (
     HFGenerationError,
     HFNotConfiguredError,
     generate_questions,
     generate_questions_chat,
 )
+from backend.core.host_store import InMemoryHostStore
+from backend.core.paper_store import InMemoryPaperStore
 from backend.models.paper import (
     Paper,
     PaperGenerationChatRequest,

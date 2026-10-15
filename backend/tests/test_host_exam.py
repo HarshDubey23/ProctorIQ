@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
@@ -161,7 +161,7 @@ class TestMaxParticipantsEnforcement:
                     current_state="focused",
                     elapsed_seconds=10,
                     event_count=0,
-                    joined_at=datetime.now(timezone.utc),
+                    joined_at=datetime.now(UTC),
                 ),
             ))
         finally:
@@ -180,7 +180,7 @@ class TestMaxParticipantsEnforcement:
                         current_state="focused",
                         elapsed_seconds=10,
                         event_count=0,
-                        joined_at=datetime.now(timezone.utc),
+                        joined_at=datetime.now(UTC),
                     ),
                 ))
             finally:
@@ -207,7 +207,7 @@ class TestMaxParticipantsEnforcement:
                         current_state="focused",
                         elapsed_seconds=10,
                         event_count=0,
-                        joined_at=datetime.now(timezone.utc),
+                        joined_at=datetime.now(UTC),
                     ),
                 ))
             finally:
@@ -241,7 +241,7 @@ class TestMaxParticipantsEnforcement:
                         current_state="focused",
                         elapsed_seconds=10,
                         event_count=0,
-                        joined_at=datetime.now(timezone.utc),
+                        joined_at=datetime.now(UTC),
                     ),
                 ))
             finally:
@@ -398,13 +398,13 @@ class TestCombinedReportEndpoint:
                         current_state="focused",
                         elapsed_seconds=30,
                         event_count=0,
-                        joined_at=datetime.now(timezone.utc),
+                        joined_at=datetime.now(UTC),
                     ),
                 ))
                 loop.run_until_complete(session_store.create_session(Session(
                     id="p1-session",
-                    start=datetime.now(timezone.utc) - timedelta(seconds=30),
-                    end=datetime.now(timezone.utc),
+                    start=datetime.now(UTC) - timedelta(seconds=30),
+                    end=datetime.now(UTC),
                     mode="exam",
                 )))
                 loop.run_until_complete(store.upsert_member(
@@ -416,13 +416,13 @@ class TestCombinedReportEndpoint:
                         current_state="distracted",
                         elapsed_seconds=20,
                         event_count=2,
-                        joined_at=datetime.now(timezone.utc),
+                        joined_at=datetime.now(UTC),
                     ),
                 ))
                 loop.run_until_complete(session_store.create_session(Session(
                     id="p2-session",
-                    start=datetime.now(timezone.utc) - timedelta(seconds=20),
-                    end=datetime.now(timezone.utc),
+                    start=datetime.now(UTC) - timedelta(seconds=20),
+                    end=datetime.now(UTC),
                     mode="exam",
                 )))
             finally:

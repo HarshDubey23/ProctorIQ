@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import uuid4
 
@@ -224,7 +224,7 @@ async def join_room(
         current_state="waiting",
         elapsed_seconds=0,
         event_count=0,
-        joined_at=datetime.now(timezone.utc),
+        joined_at=datetime.now(UTC),
     )
     try:
         await store.upsert_member(room_id, member)
@@ -288,7 +288,7 @@ async def get_room_reports(
         if session.end and session.start:
             duration_s = int((session.end - session.start).total_seconds())
         elif session.start:
-            duration_s = int((datetime.now(timezone.utc) - session.start).total_seconds())
+            duration_s = int((datetime.now(UTC) - session.start).total_seconds())
 
         score_result = compute_attention_score(flag_events, duration_s)
 

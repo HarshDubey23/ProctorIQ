@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -38,7 +38,7 @@ async def health(request: Request) -> dict[str, object]:
     return {
         "status": "ok",
         "version": "0.1.0",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "github_token_configured": gh_token_configured,
         "database_connected": db_reachable,
         "model_artifacts": {

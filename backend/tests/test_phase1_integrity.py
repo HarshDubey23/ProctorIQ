@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -161,8 +161,8 @@ class TestHMACSigning:
     def _make_session(self) -> Session:
         return Session(
             id="hmac-test-session",
-            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2025, 1, 1, 11, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC),
+            end=datetime(2025, 1, 1, 11, 0, 0, tzinfo=UTC),
             mode="exam",
             final_score=-0.75,
             pct_focused=82.5,
@@ -217,7 +217,7 @@ class TestWebSocketFlagAccumulation:
         store = InMemorySessionStore()
         session = Session(
             id="ws-flag-session",
-            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC),
             mode="exam",
         )
         await store.create_session(session)
@@ -244,8 +244,8 @@ class TestWebSocketFlagAccumulation:
         store = InMemorySessionStore()
         session = Session(
             id="ws-score-session",
-            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2025, 1, 1, 10, 0, 10, tzinfo=timezone.utc),
+            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC),
+            end=datetime(2025, 1, 1, 10, 0, 10, tzinfo=UTC),
             mode="exam",
         )
         await store.create_session(session)
@@ -275,7 +275,7 @@ class TestCleanupTasks:
         assert room.room_id in store._rooms
 
         # Manually set last_activity to 3 hours ago
-        store._last_activity[room.room_id] = datetime.now(timezone.utc) - timedelta(hours=3)
+        store._last_activity[room.room_id] = datetime.now(UTC) - timedelta(hours=3)
 
         await store.cleanup_stale_rooms()
         assert room.room_id not in store._rooms
@@ -292,7 +292,7 @@ class TestCleanupTasks:
         store = InMemorySessionStore()
         session = Session(
             id="stale-session",
-            start=datetime.now(timezone.utc) - timedelta(hours=2),
+            start=datetime.now(UTC) - timedelta(hours=2),
             mode="exam",
         )
         await store.create_session(session)
@@ -306,7 +306,7 @@ class TestCleanupTasks:
         store = InMemorySessionStore()
         session = Session(
             id="active-session",
-            start=datetime.now(timezone.utc) - timedelta(minutes=5),
+            start=datetime.now(UTC) - timedelta(minutes=5),
             mode="exam",
         )
         await store.create_session(session)
@@ -320,8 +320,8 @@ class TestCleanupTasks:
         store = InMemorySessionStore()
         session = Session(
             id="completed-session",
-            start=datetime.now(timezone.utc) - timedelta(hours=3),
-            end=datetime.now(timezone.utc) - timedelta(hours=2),
+            start=datetime.now(UTC) - timedelta(hours=3),
+            end=datetime.now(UTC) - timedelta(hours=2),
             mode="exam",
         )
         await store.create_session(session)
@@ -344,7 +344,7 @@ class TestCleanupTasks:
     def test_create_session_via_api_starts_cleanup_eligible(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            old_start = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+            old_start = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
             client.post("/api/sessions", json={
                 "id": "cleanup-candidate",
                 "start": old_start,
@@ -377,7 +377,7 @@ class TestExamFlowIntegration:
         store = InMemorySessionStore()
         session = Session(
             id="exam-flow-test",
-            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=UTC),
             mode="exam",
             quiz_score=80.0,
         )
@@ -394,7 +394,7 @@ class TestExamFlowIntegration:
         store = InMemorySessionStore()
         session = Session(
             id="exam-ws-events",
-            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=UTC),
             mode="exam",
         )
         await store.create_session(session)
@@ -425,8 +425,8 @@ class TestExamFlowIntegration:
         store = InMemorySessionStore()
         session = Session(
             id="exam-report-scores",
-            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2025, 6, 1, 10, 0, 10, tzinfo=timezone.utc),
+            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=UTC),
+            end=datetime(2025, 6, 1, 10, 0, 10, tzinfo=UTC),
             mode="exam",
             quiz_score=95.0,  # high quiz score, but integrity should be independent
         )
@@ -490,8 +490,8 @@ class TestExamFlowIntegration:
         store = InMemorySessionStore()
         session = Session(
             id="exam-pdf-consistency",
-            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=timezone.utc),
-            end=datetime(2025, 6, 1, 10, 0, 10, tzinfo=timezone.utc),
+            start=datetime(2025, 6, 1, 10, 0, 0, tzinfo=UTC),
+            end=datetime(2025, 6, 1, 10, 0, 10, tzinfo=UTC),
             mode="exam",
         )
         await store.create_session(session)

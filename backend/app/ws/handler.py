@@ -4,15 +4,16 @@ import asyncio
 import hmac
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from backend.core.session_store import SessionStore
+from backend.app.ws.room_handler import broadcast_room_update
 from backend.core.room_store import InMemoryRoomStore
+from backend.core.session_store import SessionStore
 from backend.cv.kalman import EarKalman, HeadPoseKalman
 from backend.models.room import RoomMember
 from backend.models.session import BenchmarkResult, Event
@@ -24,7 +25,6 @@ from backend.models.ws import (
     WsOutboundTick,
     WsStateEvent,
 )
-from backend.app.ws.room_handler import broadcast_room_update
 
 
 @dataclass
@@ -85,7 +85,7 @@ async def _send_ticks(
                     current_state=state.attention_state,
                     elapsed_seconds=int(time.time()),
                     event_count=len(state.events_buffer),
-                    joined_at=datetime.now(timezone.utc),
+                    joined_at=datetime.now(UTC),
                 )
                 await room_store.upsert_member(room_id, member)
                 await broadcast_room_update(room_id, room_store)

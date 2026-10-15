@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from backend.models.session import Event, Session, Verdict
 from backend.report.signing import sign_session, verify_signature
@@ -11,8 +11,8 @@ TEST_SECRET = "test-hmac-secret"
 def _make_session(**overrides: object) -> Session:
     base = Session(
         id="test-session-001",
-        start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
-        end=datetime(2025, 1, 1, 11, 0, 0, tzinfo=timezone.utc),
+        start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC),
+        end=datetime(2025, 1, 1, 11, 0, 0, tzinfo=UTC),
         mode="exam",
         final_score=-0.75,
         pct_focused=82.5,

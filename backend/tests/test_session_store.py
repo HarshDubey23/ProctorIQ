@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -17,7 +17,7 @@ def store() -> InMemorySessionStore:
 def sample_session() -> Session:
     return Session(
         id="s1",
-        start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+        start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC),
         mode="exam",
     )
 
@@ -27,7 +27,7 @@ class TestInMemorySessionStore:
     async def test_create_and_get(self, store: InMemorySessionStore) -> None:
         sess = Session(
             id="s1",
-            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC),
             mode="exam",
         )
         created = await store.create_session(sess)
@@ -42,7 +42,7 @@ class TestInMemorySessionStore:
 
     @pytest.mark.asyncio
     async def test_create_returns_copy(self, store: InMemorySessionStore) -> None:
-        sess = Session(id="s1", start=datetime.now(timezone.utc), mode="self_test")
+        sess = Session(id="s1", start=datetime.now(UTC), mode="self_test")
         created = await store.create_session(sess)
         created.final_score = 10.0
         fetched = await store.get_session("s1")
@@ -53,7 +53,7 @@ class TestInMemorySessionStore:
     async def test_add_event(self, store: InMemorySessionStore) -> None:
         sess = Session(
             id="s1",
-            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC),
             mode="exam",
         )
         await store.create_session(sess)
@@ -88,7 +88,7 @@ class TestInMemorySessionStore:
     async def test_update_session(self, store: InMemorySessionStore) -> None:
         sess = Session(
             id="s1",
-            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC),
             mode="exam",
         )
         await store.create_session(sess)
@@ -96,7 +96,7 @@ class TestInMemorySessionStore:
         updated = Session(
             id="s1",
             start=sess.start,
-            end=datetime(2025, 1, 1, 11, 0, 0, tzinfo=timezone.utc),
+            end=datetime(2025, 1, 1, 11, 0, 0, tzinfo=UTC),
             mode="exam",
             final_score=-1.0,
             verdict=Verdict.FLAGGED,
@@ -113,7 +113,7 @@ class TestInMemorySessionStore:
         for i in range(3):
             sess = Session(
                 id=f"s{i}",
-                start=datetime(2025, 1, 1, 10 + i, 0, 0, tzinfo=timezone.utc),
+                start=datetime(2025, 1, 1, 10 + i, 0, 0, tzinfo=UTC),
                 mode="exam",
             )
             await store.create_session(sess)
@@ -131,7 +131,7 @@ class TestInMemorySessionStore:
         for i in range(5):
             sess = Session(
                 id=f"s{i}",
-                start=datetime(2025, 1, 1, 10 + i, 0, 0, tzinfo=timezone.utc),
+                start=datetime(2025, 1, 1, 10 + i, 0, 0, tzinfo=UTC),
                 mode="exam",
             )
             await store.create_session(sess)
@@ -143,7 +143,7 @@ class TestInMemorySessionStore:
     async def test_event_counts_in_summary(self, store: InMemorySessionStore) -> None:
         sess = Session(
             id="s1",
-            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC),
             mode="exam",
         )
         await store.create_session(sess)

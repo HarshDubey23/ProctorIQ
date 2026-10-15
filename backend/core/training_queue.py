@@ -10,7 +10,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-
 RETRAIN_BATCH_SIZE = 5
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -81,8 +80,7 @@ class TrainingQueueState:
 
         async for line in proc.stdout if proc.stdout else _async_empty():
             text = line.decode(errors="replace").rstrip()
-            with open(log_path, "a") as f:
-                f.write(text + "\n")
+            await asyncio.to_thread(_append_line, log_path, text)
 
             epoch = _parse_epoch(text)
             loss = _parse_loss(text)
@@ -180,3 +178,8 @@ async def _validate_and_swap(run_id: str) -> bool:
         REGISTRY_PATH.write_text(json.dumps(updated_registry, indent=2))
         return False
     return True
+
+
+def _append_line(path: Path, text: str) -> None:
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(text + "\n")

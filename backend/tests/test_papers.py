@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC
+
 from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
@@ -84,7 +86,7 @@ class TestSubmitAnswers:
             room_id = room_resp.json()["room_id"]
 
             import asyncio
-            from datetime import datetime, timezone
+            from datetime import datetime
 
             from backend.core.room_store import InMemoryRoomStore
             from backend.models.room import RoomMember
@@ -101,7 +103,7 @@ class TestSubmitAnswers:
                         current_state="focused",
                         elapsed_seconds=0,
                         event_count=0,
-                        joined_at=datetime.now(timezone.utc),
+                        joined_at=datetime.now(UTC),
                     ),
                 ))
             finally:
@@ -134,7 +136,7 @@ class TestSubmitAnswers:
             room_id = room_resp.json()["room_id"]
 
             import asyncio
-            from datetime import datetime, timezone
+            from datetime import datetime
 
             from backend.core.room_store import InMemoryRoomStore
             from backend.models.room import RoomMember
@@ -151,7 +153,7 @@ class TestSubmitAnswers:
                         current_state="focused",
                         elapsed_seconds=0,
                         event_count=0,
-                        joined_at=datetime.now(timezone.utc),
+                        joined_at=datetime.now(UTC),
                     ),
                 ))
             finally:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from backend.cv.scoring import FlagEvent, compute_attention_score
 from backend.models.session import Session, Verdict
@@ -15,7 +15,7 @@ def apply_server_integrity_score(session: Session) -> Session:
     if session.end and session.start:
         duration_s = int((session.end - session.start).total_seconds())
     elif session.start:
-        duration_s = int((datetime.now(timezone.utc) - session.start).total_seconds())
+        duration_s = int((datetime.now(UTC) - session.start).total_seconds())
 
     score_result = compute_attention_score(flag_events, duration_s)
 

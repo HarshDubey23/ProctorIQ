@@ -44,7 +44,7 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def production_requires_real_signing_secret(self) -> "Settings":
+    def production_requires_real_signing_secret(self) -> Settings:
         if (
             self.environment == "production"
             and self.report_signing_secret == "dev-secret-not-for-production"

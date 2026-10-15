@@ -11,7 +11,6 @@ from fastapi.responses import StreamingResponse
 
 from backend.core.training_queue import TrainingQueueState
 
-
 router = APIRouter(prefix="/ml", tags=["ml"])
 
 REGISTRY_PATH = Path(__file__).resolve().parent.parent.parent.parent / "ml" / "checkpoints" / "registry.json"
@@ -111,7 +110,7 @@ async def training_events_sse(request: Request) -> StreamingResponse:
             while True:
                 event = await asyncio.wait_for(sub.get(), timeout=30)
                 yield f"data: {event.model_dump_json()}\n\n"
-        except asyncio.TimeoutError:
+        except TimeoutError:
             yield ": keepalive\n\n"
         except asyncio.CancelledError:
             pass

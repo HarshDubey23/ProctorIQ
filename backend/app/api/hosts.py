@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -25,7 +25,7 @@ async def create_host(
     host = HostAccount(
         host_id=f"h_{secrets.token_hex(8)}",
         host_token=secrets.token_urlsafe(32),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     created = await store.create(host)
     return {"host_id": created.host_id, "host_token": created.host_token}

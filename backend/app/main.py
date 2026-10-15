@@ -3,13 +3,13 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from loguru import logger
 
-from backend.core.config import get_settings
 from backend.core.accommodation_store import InMemoryAccommodationStore
+from backend.core.config import get_settings
 from backend.core.database import close_db, init_db
 from backend.core.host_store import InMemoryHostStore
 from backend.core.paper_store import InMemoryPaperStore
@@ -19,7 +19,7 @@ from backend.core.training_queue import TrainingQueueState
 
 
 async def _close_expired_rooms(store: InMemoryRoomStore | SqliteRoomStore) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if isinstance(store, (InMemoryRoomStore,)):
         room_ids = list(store._rooms.keys())
     else:
@@ -90,9 +90,9 @@ def create_app() -> FastAPI:
     from backend.app.api.hosts import router as hosts_router
     from backend.app.api.model import router as model_router
     from backend.app.api.papers import router as papers_router
+    from backend.app.api.rooms import router as rooms_router
     from backend.app.api.sessions import router as sessions_router
     from backend.app.api.verify import router as verify_router
-    from backend.app.api.rooms import router as rooms_router
     from backend.app.middleware import register_middleware
     from backend.app.ws.handler import router as ws_router
     from backend.app.ws.room_handler import router as room_ws_router

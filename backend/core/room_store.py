@@ -5,7 +5,7 @@ import json
 import random
 import secrets
 import string
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal, Protocol
 
 from sqlmodel import Field, SQLModel, select
@@ -75,7 +75,7 @@ class InMemoryRoomStore:
             host_token = secrets.token_urlsafe(32)
             room = Room(
                 room_id=room_id,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
                 title=title,
                 paper_id=paper_id,
                 duration_minutes=duration_minutes,
@@ -83,14 +83,14 @@ class InMemoryRoomStore:
                 host_token=host_token,
             )
             self._rooms[room_id] = room
-            self._last_activity[room_id] = datetime.now(timezone.utc)
+            self._last_activity[room_id] = datetime.now(UTC)
             return room
 
     async def get_room(self, room_id: str) -> Room | None:
         async with self._lock:
             room = self._rooms.get(room_id)
             if room is not None:
-                self._last_activity[room_id] = datetime.now(timezone.utc)
+                self._last_activity[room_id] = datetime.now(UTC)
             return room
 
     async def upsert_member(self, room_id: str, member: RoomMember) -> None:
@@ -107,21 +107,21 @@ class InMemoryRoomStore:
             ):
                 raise ValueError("Room is at maximum capacity")
             room.active_sessions[member.session_id] = member
-            self._last_activity[room_id] = datetime.now(timezone.utc)
+            self._last_activity[room_id] = datetime.now(UTC)
 
     async def remove_member(self, room_id: str, session_id: str) -> None:
         async with self._lock:
             room = self._rooms.get(room_id)
             if room is not None:
                 room.active_sessions.pop(session_id, None)
-                self._last_activity[room_id] = datetime.now(timezone.utc)
+                self._last_activity[room_id] = datetime.now(UTC)
 
     async def close_room(self, room_id: str) -> Room | None:
         async with self._lock:
             room = self._rooms.get(room_id)
             if room is not None:
                 room.status = "closed"
-                self._last_activity[room_id] = datetime.now(timezone.utc)
+                self._last_activity[room_id] = datetime.now(UTC)
             return room.model_copy(deep=True) if room else None
 
     async def get_room_for_session(self, session_id: str) -> Room | None:
@@ -140,7 +140,7 @@ class InMemoryRoomStore:
 
     async def cleanup_stale_rooms(self) -> None:
         async with self._lock:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             stale = [
                 rid
                 for rid, last in self._last_activity.items()
@@ -184,7 +184,7 @@ def _row_from_room(room: Room) -> RoomRow:
         host_token=room.host_token,
         status=room.status,
         active_sessions_json=json.dumps(active_sessions_data),
-        last_activity=datetime.now(timezone.utc).isoformat(),
+        last_activity=datetime.now(UTC).isoformat(),
     )
 
 
@@ -203,7 +203,7 @@ class SqliteRoomStore:
                 if existing.scalar_one_or_none() is None:
                     break
             host_token = secrets.token_urlsafe(32)
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             room = Room(
                 room_id=room_id,
                 created_at=now,
@@ -224,7 +224,7 @@ class SqliteRoomStore:
             row = await db.get(RoomRow, room_id)
             if row is None:
                 return None
-            row.last_activity = datetime.now(timezone.utc).isoformat()
+            row.last_activity = datetime.now(UTC).isoformat()
             await db.commit()
             return _room_from_row(row)
 
@@ -244,7 +244,7 @@ class SqliteRoomStore:
                 raise ValueError("Room is at maximum capacity")
             sessions[member.session_id] = member.model_dump()
             row.active_sessions_json = json.dumps(sessions)
-            row.last_activity = datetime.now(timezone.utc).isoformat()
+            row.last_activity = datetime.now(UTC).isoformat()
             await db.commit()
 
     async def remove_member(self, room_id: str, session_id: str) -> None:
@@ -254,7 +254,7 @@ class SqliteRoomStore:
                 sessions = json.loads(row.active_sessions_json) if row.active_sessions_json else {}
                 sessions.pop(session_id, None)
                 row.active_sessions_json = json.dumps(sessions)
-                row.last_activity = datetime.now(timezone.utc).isoformat()
+                row.last_activity = datetime.now(UTC).isoformat()
                 await db.commit()
 
     async def close_room(self, room_id: str) -> Room | None:
@@ -263,7 +263,7 @@ class SqliteRoomStore:
             if row is None:
                 return None
             row.status = "closed"
-            row.last_activity = datetime.now(timezone.utc).isoformat()
+            row.last_activity = datetime.now(UTC).isoformat()
             await db.commit()
             await db.refresh(row)
             return _room_from_row(row)
@@ -288,7 +288,7 @@ class SqliteRoomStore:
 
     async def cleanup_stale_rooms(self) -> None:
         async with get_session() as db:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             result = await db.execute(select(RoomRow))
             rows = result.scalars().all()
             for row in rows:

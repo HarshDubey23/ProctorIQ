@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from typing import cast
 
-from pydantic import BaseModel
-
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 

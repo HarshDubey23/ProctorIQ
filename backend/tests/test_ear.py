@@ -3,7 +3,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from backend.cv.ear import LEFT_EYE_INDICES, RIGHT_EYE_INDICES, compute_ear, eye_aspect_ratio
+from backend.cv.ear import (
+    LEFT_EYE_INDICES,
+    RIGHT_EYE_INDICES,
+    compute_ear,
+    eye_aspect_ratio,
+)
 
 
 class TestEyeAspectRatio:

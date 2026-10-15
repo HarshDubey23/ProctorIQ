@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -63,7 +63,7 @@ async def submit_clip(
         "contributor_id": body.contributor_id,
         "duration_s": body.duration_s,
         "landmarks": body.landmarks,
-        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "submitted_at": datetime.now(UTC).isoformat(),
     }
     try:
         await commit_json_file(path, payload, message=f"collect: {body.label}/{clip_hash[:8]}")

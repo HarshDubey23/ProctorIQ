@@ -9,7 +9,6 @@ import httpx
 from pydantic import ValidationError
 
 from backend.core.config import get_settings
-
 from backend.models.paper import (
     PaperGenerationChatAskResponse,
     PaperGenerationChatGenerateResponse,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from backend.models.session import Event, Session, Verdict
 from backend.report.pdf import generate_session_pdf
@@ -9,8 +9,8 @@ from backend.report.pdf import generate_session_pdf
 def test_pdf_generation_runs() -> None:
     session = Session(
         id="test-session-pdf",
-        start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
-        end=datetime(2025, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+        start=datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC),
+        end=datetime(2025, 1, 1, 10, 5, 0, tzinfo=UTC),
         mode="exam",
         final_score=85.0,
         pct_focused=90.0,

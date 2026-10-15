@@ -6,7 +6,10 @@ from typing import cast
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.core.accommodation_store import InMemoryAccommodationStore
-from backend.models.accommodation import AccommodationProfile, AccommodationProfileCreate
+from backend.models.accommodation import (
+    AccommodationProfile,
+    AccommodationProfileCreate,
+)
 
 router = APIRouter(prefix="/accommodations", tags=["accommodations"])
 

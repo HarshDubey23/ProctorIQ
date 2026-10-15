@@ -5,7 +5,6 @@ from typing import Any, cast
 
 from PIL import Image, ImageDraw
 
-
 EVENT_COLORS: dict[str, tuple[int, int, int]] = {
     "focused": (52, 211, 153),
     "distracted": (251, 146, 60),

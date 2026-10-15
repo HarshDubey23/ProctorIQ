@@ -2,21 +2,22 @@ from __future__ import annotations
 
 import io
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
+
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    SimpleDocTemplate,
+    Image,
+    PageBreak,
     Paragraph,
+    SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
-    PageBreak,
-    Image,
 )
-from reportlab.lib import colors
 
 from backend.models.session import Session, SessionSummary, Verdict
 from backend.report.signing import sign_session
@@ -38,7 +39,7 @@ def _fmt_dt(dt: datetime | None) -> str:
 
 def _fmt_duration(start: datetime, end: datetime | None) -> str:
     if end is None:
-        end = datetime.now(timezone.utc)
+        end = datetime.now(UTC)
     delta = end - start
     total_s = int(delta.total_seconds())
     m, s = divmod(total_s, 60)
