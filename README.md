@@ -7,9 +7,12 @@ Only structured attention events — never video — reach the server.
 [![CI](https://img.shields.io/github/actions/workflow/status/HarshDubey23/ProctorIQ/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/HarshDubey23/ProctorIQ/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
-**Deployment status: no verified public deployment.** An earlier version of this README
-linked `proctoriq.vercel.app`, which returns 404. Run it locally with the Quick Start below,
-or follow the [deployment runbook](DEPLOYMENT.md).
+**Live frontend:** https://proctoriq-exam.vercel.app (Vercel, deployed 2026-10-15). The Self-Test
+runs entirely in your browser (MediaPipe + the 27 KB ONNX model are served from this repo; the
+model file's size and the landmarker's SHA-256 were checked against the deployment).
+**The API isn't deployed yet,** so paper building, live exams and signed reports don't work on
+the live site. Run them locally with the Quick Start below. An earlier README linked
+`proctoriq.vercel.app` (404) and `proctor-iq.vercel.app` is an unrelated app, so don't use either.
 
 ---
 
