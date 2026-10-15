@@ -215,7 +215,7 @@ Profile view causes key landmark occlusion. Detection continues with reduced acc
 
 ### MediaPipe Bias
 
-MediaPipe's face landmark model has documented ~8-12% lower detection rates for dark skin in low-light conditions (< 50 lux). This is a known issue in the broader face analysis community. The rule-based fallback (reports "absent" when no landmarks are found) means the system degrades to a conservative default rather than producing false positive detections.
+Face-analysis models can perform unevenly across skin tones, especially in poor lighting (see Buolamwini & Gebru, "Gender Shades", FAT* 2018, for a documented case in commercial face analysis). ProctorIQ has not measured detection rates by skin tone, so the size of any gap for this pipeline is unknown; this needs a consented, demographically varied evaluation. The rule-based fallback (reports "absent" when no landmarks are found) means the system degrades to a conservative default rather than producing false positive detections.
 
 ---
 

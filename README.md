@@ -4,27 +4,38 @@
 All ML inference runs client-side via MediaPipe WASM + ONNX Runtime Web.  
 Only structured attention events — never video — reach the server.
 
-[![Live Demo](https://img.shields.io/badge/Try%20it%20live-00875A?style=for-the-badge&logo=vercel&logoColor=white)](https://proctoriq.vercel.app)
 [![CI](https://img.shields.io/github/actions/workflow/status/HarshDubey23/ProctorIQ/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/HarshDubey23/ProctorIQ/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
-Deployment status: the frontend and API can be deployed independently. Follow
-the [deployment runbook](DEPLOYMENT.md), then replace every placeholder URL
-below with the URLs from the actual deployments.
+**Deployment status: no verified public deployment.** An earlier version of this README
+linked `proctoriq.vercel.app`, which returns 404. Run it locally with the Quick Start below,
+or follow the [deployment runbook](DEPLOYMENT.md).
 
 ---
 
-## Key Numbers
+## Key Numbers (read the caveats)
 
-| Metric | Value |
-|--------|-------|
-| Model accuracy | **99.22%** |
-| Macro F1 | **0.9918** |
-| Cross-validation (5-fold) | **0.995 ± 0.003** |
-| Model size (ONNX) | **~27 KB** |
-| Per-frame inference | **<15 ms** (ML) / **~0.5 ms** (rules) |
+| Metric | Value | What it actually measures |
+|--------|-------|---------------------------|
+| Held-out test accuracy | **99.22%** | 384 windows cut from **30 held-out clips** (clip-level split, so no window leakage) |
+| Macro F1 | **0.9918** | Same 30 clips |
+| 5-fold CV macro F1 | 0.995 ± 0.003 | Folds over *windows* of training clips; overlapping windows from one clip can sit in different folds, so this is optimistic |
+| Model size (ONNX) | ~27 KB | `frontend/public/models/attention_model.onnx` |
+| Per-frame inference | <15 ms (ML) / ~0.5 ms (rules) | Self-reported in `benchmark_report.json`; device not re-measured |
 
-Full benchmark, confusion matrix, ablation study, and latency data at the [**Model Card**](/model) — or see [docs/BENCHMARK.md](docs/BENCHMARK.md) / [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+**Scope of these numbers.** The dataset is 200 *acted* 3-second clips (50 per class) recorded
+in 5 sessions on one 720p webcam. The number of distinct participants isn't recorded, so
+cross-person generalization hasn't been measured. The figures above show the classifier separates
+these four acted states in-distribution. They don't measure accuracy on real exam footage,
+other people, other cameras, or natural (non-acted) behaviour. The raw clips aren't in the
+repository, so the benchmark can't be re-run from a fresh clone.
+
+Next evaluation needed before any accuracy claim: subject-disjoint (leave-one-person-out)
+evaluation with several consenting participants, plus per-condition results (lighting,
+glasses, distance).
+
+Full benchmark, confusion matrix and ablation: [docs/BENCHMARK.md](docs/BENCHMARK.md) ·
+architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
@@ -47,7 +58,7 @@ If someone PATCHes the session record with a forged `quiz_score`, the stored sig
 
 ## What's New in v2
 
-ProctorIQ v2 introduces a complete visual overhaul and a set of production-ready features:
+ProctorIQ v2 introduces a complete visual overhaul and a set of new features:
 
 ### Neo-Brutalist Design System
 - **Examination Hall Brutalism** — hard edges, thick borders, hard offset shadows, honest materials

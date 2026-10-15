@@ -130,7 +130,7 @@ The PCA payload is a startup-fetch concern, not a per-frame inference latency co
 
 3. **Strong eyeglass lenses**: Thick corrective lenses distort eye landmark positions. EAR measurements become unreliable (both inflated and deflated depending on lens type). The blink detector may miss blinks or report false positives.
 
-4. **Dark skin in low light**: MediaPipe's face detection models have documented bias with darker skin tones in low-light conditions. Detection rate drops by ~8-12% compared to lighter skin in identical lighting.
+4. **Dark skin in low light**: Face-analysis models can perform unevenly across skin tones, especially in poor lighting (see Buolamwini & Gebru, "Gender Shades", FAT* 2018, for a documented case in commercial face analysis). ProctorIQ has not measured detection rates by skin tone, so the size of any gap for this pipeline is unknown; this needs a consented, demographically varied evaluation.
 
 5. **Rapid state changes**: The 30-frame ML buffer means it takes ~1s for the ML model to detect a state change. During that second, the rule engine provides instant feedback, but the ML layer lags by one window.
 
