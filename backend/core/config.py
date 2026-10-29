@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     rate_limit: str = "60/minute"
 
     sqlite_path: str = ""
+    # Postgres (e.g. Supabase) URL; takes precedence over sqlite_path when set.
+    database_url: str = ""
 
     report_signing_secret: str = "dev-secret-not-for-production"
     public_api_base_url: str = "http://localhost:8000"

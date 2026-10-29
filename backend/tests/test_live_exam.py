@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -81,7 +82,8 @@ def _setup(client: TestClient, **paper_overrides: Any) -> dict[str, str]:
     room = client.post("/api/rooms", headers={"X-Host-Token": host["host_token"]},
                        json={"paper_id": paper["id"]})
     assert room.status_code == 201
-    return {"room_id": room.json()["room_id"], "room_token": room.json()["host_token"], "paper_id": paper["id"]}
+    return {"room_id": room.json()["room_id"], "room_token": room.json()["host_token"],
+            "paper_id": paper["id"], "host_token": host["host_token"]}
 
 
 def _join(client: TestClient, room_id: str, name: str = "Asha") -> dict[str, str]:
@@ -278,25 +280,46 @@ class TestLiveSockets:
             assert exc.value.code == 4403
 
 
-class TestSqlitePersistence:
-    def test_papers_rooms_and_answers_survive_restart(self, tmp_path: Any, monkeypatch: Any) -> None:
-        from backend.core import config
+def _restart_roundtrip(env_key: str, env_value: str, monkeypatch: Any) -> None:
+    """Run an exam, restart the app on the same database, and read the results back."""
+    from backend.core import config
 
-        monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "exam.db"))
-        monkeypatch.setattr(config, "_settings", None)
-        with TestClient(create_app()) as client:
-            ids = _setup(client)
-            rid = ids["room_id"]
-            s = _join(client, rid)
-            client.post(f"/api/rooms/{rid}/start", headers=_st(s), json={"session_id": s["session_id"]})
-            client.post(f"/api/rooms/{rid}/submit", headers=_st(s),
-                        json={"session_id": s["session_id"], "answers": CORRECT})
+    monkeypatch.setenv(env_key, env_value)
+    monkeypatch.setattr(config, "_settings", None)
+    with TestClient(create_app()) as client:
+        ids = _setup(client)
+        rid = ids["room_id"]
+        s = _join(client, rid)
+        client.post(f"/api/rooms/{rid}/start", headers=_st(s), json={"session_id": s["session_id"]})
+        client.post(f"/api/rooms/{rid}/submit", headers=_st(s),
+                    json={"session_id": s["session_id"], "answers": CORRECT})
+
+    with TestClient(create_app()) as client:
+        results = client.get(f"/api/rooms/{rid}/results", headers={"X-Host-Token": ids["room_token"]})
+        assert results.status_code == 200
+        st = results.json()["students"][0]
+        assert st["marks"] == 7 and st["status"] == "submitted"
+        assert next(a for a in st["answers"] if a["question_id"] == "essay")["answer"] == CORRECT["essay"]
+        # The teacher account survives too, so publishing keeps working after a restart.
+        host_papers = client.get("/api/papers", headers={"X-Host-Token": ids["host_token"]})
+        assert [p["id"] for p in host_papers.json()] == [ids["paper_id"]]
+    monkeypatch.setattr(config, "_settings", None)
+
+
+class TestPersistence:
+    def test_sqlite_survives_restart(self, tmp_path: Any, monkeypatch: Any) -> None:
+        _restart_roundtrip("SQLITE_PATH", str(tmp_path / "exam.db"), monkeypatch)
         assert (tmp_path / "exam.db").stat().st_size > 0
 
-        with TestClient(create_app()) as client:
-            results = client.get(f"/api/rooms/{rid}/results", headers={"X-Host-Token": ids["room_token"]})
-            assert results.status_code == 200
-            st = results.json()["students"][0]
-            assert st["marks"] == 7 and st["status"] == "submitted"
-            assert next(a for a in st["answers"] if a["question_id"] == "essay")["answer"] == CORRECT["essay"]
-        monkeypatch.setattr(config, "_settings", None)
+    @pytest.mark.skipif(not os.environ.get("TEST_DATABASE_URL"), reason="set TEST_DATABASE_URL to a Postgres URL")
+    def test_postgres_survives_restart(self, monkeypatch: Any) -> None:
+        _restart_roundtrip("DATABASE_URL", os.environ["TEST_DATABASE_URL"], monkeypatch)
+
+    def test_database_url_forms(self) -> None:
+        from backend.core.database import engine_args
+
+        assert engine_args("data/x.db") == ("sqlite+aiosqlite:///data/x.db", {})
+        url, args = engine_args("postgresql://u:p%40ss@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require")
+        assert url == "postgresql+asyncpg://u:p%40ss@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?prepared_statement_cache_size=0"
+        assert args == {"statement_cache_size": 0, "ssl": "require"}
+        assert "ssl" not in engine_args("postgres://u:p@localhost:5432/db")[1]

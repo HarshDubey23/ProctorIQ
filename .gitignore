@@ -29,3 +29,4 @@ frontend/playwright-report/
 frontend/test-results/
 ml/checkpoints/*.pt
 ml/checkpoints/runs/
+.neon
