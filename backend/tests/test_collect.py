@@ -140,3 +140,72 @@ class TestCollect:
         arr, label, _ = clips[0]
         assert arr.shape == (150, 936) and label == "focused"
         assert abs(float(arr[0][0]) - body["landmarks"][0][0]) < 1e-6
+
+
+class TestGitHubCommit:
+    """commit_json_file against a fake GitHub (no network)."""
+
+    def _patch(self, monkeypatch: pytest.MonkeyPatch, responses: list[int]) -> list[int]:
+        import asyncio
+
+        import httpx
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            return httpx.Response(responses[min(len(calls), len(responses)) - 1], json={})
+
+        real = httpx.AsyncClient
+        monkeypatch.setattr(httpx, "AsyncClient",
+                            lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+        monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+        monkeypatch.setenv("COLLECT_GITHUB_REPO", "o/r")
+        return calls
+
+    @pytest.mark.asyncio
+    async def test_branch_conflict_is_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from backend.core.github_commit import commit_json_file
+
+        calls = self._patch(monkeypatch, [409, 409, 201])
+        await commit_json_file("ml/data/raw/x.json", {"a": 1}, "msg")
+        assert len(calls) == 3
+
+    @pytest.mark.asyncio
+    async def test_persistent_failure_becomes_clean_503(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from backend.core.github_commit import (
+            CollectionUnavailableError,
+            commit_json_file,
+        )
+
+        calls = self._patch(monkeypatch, [409])
+        with pytest.raises(CollectionUnavailableError):
+            await commit_json_file("ml/data/raw/x.json", {"a": 1}, "msg")
+        assert len(calls) == 4
+
+    @pytest.mark.asyncio
+    async def test_concurrent_commits_never_overlap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import asyncio
+
+        import httpx
+
+        import backend.core.github_commit as gc
+
+        in_flight, peak = 0, 0
+
+        async def fake_put(self: Any, *args: Any, **kwargs: Any) -> httpx.Response:
+            nonlocal in_flight, peak
+            in_flight += 1
+            peak = max(peak, in_flight)
+            await asyncio.sleep(0.01)
+            in_flight -= 1
+            return httpx.Response(201, json={})
+
+        monkeypatch.setattr(httpx.AsyncClient, "put", fake_put)
+        monkeypatch.setenv("COLLECT_GITHUB_REPO", "o/r")
+        await asyncio.gather(*(gc.commit_json_file(f"p{i}.json", {}, "m") for i in range(6)))
+        assert peak == 1
+
+
+async def _no_sleep(_: float) -> None:
+    return None
