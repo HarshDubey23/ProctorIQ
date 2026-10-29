@@ -8,6 +8,8 @@ import { HostExamCreate } from './features/host-exam/HostExamCreate';
 import { HostExamShare } from './features/host-exam/HostExamShare';
 import { HostDashboard } from './features/host-exam/HostDashboard';
 import { JoinExam } from './features/exam/JoinExam';
+import { StudentExam } from './features/exam/ExamPanel';
+import { loadAttempt } from './features/exam/types';
 import { Styleguide } from './components/styleguide/Styleguide';
 import { ModelTrainingPage } from './features/model/ModelTrainingPage';
 import { PaperBuilderPage } from './features/builder/PaperBuilderPage';
@@ -22,6 +24,20 @@ function getCohortIdFromPath(): string | null {
 function getJoinRoomIdFromPath(): string | null {
   const m = window.location.pathname.match(/^\/join\/([A-Z0-9]{6})$/i);
   return m ? m[1].toUpperCase() : null;
+}
+
+function getExamRoomIdFromPath(): string | null {
+  const m = window.location.pathname.match(/^\/exam\/([A-Z0-9]{6})$/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
+function StudentExamRoute({ roomId }: { roomId: string }) {
+  const attempt = loadAttempt(roomId);
+  if (!attempt) {
+    window.location.replace(`/join/${roomId}`);
+    return null;
+  }
+  return <StudentExam attempt={attempt} />;
 }
 
 function getHostRoomIdFromPath(): string | null {
@@ -97,6 +113,15 @@ function Root() {
 
   if (joinRoomId) {
     return <JoinExam roomId={joinRoomId} />;
+  }
+
+  if (window.location.pathname.match(/^\/join\/?$/i)) {
+    return <JoinExam />;
+  }
+
+  const examRoomId = getExamRoomIdFromPath();
+  if (examRoomId) {
+    return <StudentExamRoute roomId={examRoomId} />;
   }
 
   if (hostPath !== null) {

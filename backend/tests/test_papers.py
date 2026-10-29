@@ -37,14 +37,14 @@ class TestPaperCRUD:
     def test_get_paper_requires_host_token(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            pid, _ = _create_paper(client)
+            pid, _owner_token = _create_paper(client)
             resp = client.get(f"/api/papers/{pid}")
             assert resp.status_code == 422
 
     def test_get_paper_with_wrong_token_returns_403(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            pid, _ = _create_paper(client)
+            pid, _owner_token = _create_paper(client)
             resp = client.get(f"/api/papers/{pid}", headers={"X-Host-Token": "wrong-token"})
             assert resp.status_code == 403
 
@@ -62,7 +62,7 @@ class TestPaperCRUD:
     def test_get_public_paper_strips_answers(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            pid, _ = _create_paper(client)
+            pid, _owner_token = _create_paper(client)
             resp = client.get(f"/api/papers/{pid}/public")
             assert resp.status_code == 200
             data = resp.json()
@@ -80,8 +80,8 @@ class TestSubmitAnswers:
     def test_submit_answers_computes_score(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            pid, _ = _create_paper(client)
-            room_resp = client.post("/api/rooms", json={"paper_id": pid, "title": "Test Room"})
+            pid, _owner_token = _create_paper(client)
+            room_resp = client.post("/api/rooms", headers={"X-Host-Token": _owner_token}, json={"paper_id": pid, "title": "Test Room"})
             assert room_resp.status_code == 201
             room_id = room_resp.json()["room_id"]
 
@@ -130,8 +130,8 @@ class TestSubmitAnswers:
     def test_submit_all_correct(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            pid, _ = _create_paper(client)
-            room_resp = client.post("/api/rooms", json={"paper_id": pid})
+            pid, _owner_token = _create_paper(client)
+            room_resp = client.post("/api/rooms", headers={"X-Host-Token": _owner_token}, json={"paper_id": pid})
             assert room_resp.status_code == 201
             room_id = room_resp.json()["room_id"]
 

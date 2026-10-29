@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 
 const API_BASE = 'http://localhost:8000';
 
-async function createPaper(base: string) {
-  const res = await fetch(`${base}/api/papers`, {
+async function createPaper() {
+  const res = await fetch(`${API_BASE}/api/papers`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -11,45 +11,46 @@ async function createPaper(base: string) {
       subject: 'Testing',
       duration_minutes: 30,
       questions: [
-        { id: 'q1', type: 'mcq-single', title: 'Q1', body: 'Test?', marks: 1, options: ['A', 'B'], correct_answer: '0' },
+        { id: 'q1', type: 'mcq-single', title: 'Capital of France?', body: '', marks: 1, options: ['London', 'Paris'], correct_answer: 'Paris' },
+        { id: 'q2', type: 'long-answer', title: 'Explain TCP', body: '', marks: 2 },
       ],
     }),
   });
   const body = await res.json();
-  return body.id as string;
+  return { paperId: body.id as string, ownerToken: body.host_token as string };
+}
+
+async function createRoom(paper: { paperId: string; ownerToken: string }, title: string) {
+  const res = await fetch(`${API_BASE}/api/rooms`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Host-Token': paper.ownerToken },
+    body: JSON.stringify({ title, paper_id: paper.paperId, max_participants: 5, duration_minutes: 15 }),
+  });
+  expect(res.status).toBe(201);
+  return (await res.json()) as { room_id: string; host_token: string; join_url: string };
 }
 
 test.describe('Host Exam Flow', () => {
-  let paperId: string;
+  let paper: { paperId: string; ownerToken: string };
 
   test.beforeAll(async () => {
-    paperId = await createPaper(API_BASE);
+    paper = await createPaper();
   });
 
-  test.describe('Room creation via API', () => {
-    test('POST /api/rooms creates a room and returns join_url', async ({ request }) => {
-      const res = await request.post(`${API_BASE}/api/rooms`, {
-        data: { title: 'E2E Test Exam', paper_id: paperId, duration_minutes: 30, max_participants: 5 },
-      });
-      expect(res.status()).toBe(201);
-      const body = await res.json();
-      expect(body).toHaveProperty('room_id');
-      expect(body).toHaveProperty('host_token');
-      expect(body).toHaveProperty('join_url');
-      expect(body.join_url).toContain('/join/');
+  test.describe('Room API', () => {
+    test('only the paper owner can start a room', async ({ request }) => {
+      const res = await request.post(`${API_BASE}/api/rooms`, { data: { paper_id: paper.paperId } });
+      expect(res.status()).toBe(403);
+      const room = await createRoom(paper, 'E2E Test Exam');
+      expect(room.join_url).toContain('/join/');
     });
 
-    test('GET /api/rooms/{id} returns room details', async ({ request }) => {
-      const create = await request.post(`${API_BASE}/api/rooms`, {
-        data: { title: 'Room Detail Test', paper_id: paperId, duration_minutes: 15 },
-      });
-      const { room_id } = await create.json();
-
-      const res = await request.get(`${API_BASE}/api/rooms/${room_id}`);
+    test('room details are host-only', async ({ request }) => {
+      const room = await createRoom(paper, 'Room Detail Test');
+      expect((await request.get(`${API_BASE}/api/rooms/${room.room_id}`)).status()).toBe(403);
+      const res = await request.get(`${API_BASE}/api/rooms/${room.room_id}`, { headers: { 'X-Host-Token': room.host_token } });
       expect(res.status()).toBe(200);
-      const body = await res.json();
-      expect(body.title).toBe('Room Detail Test');
-      expect(body.status).toBe('open');
+      expect((await res.json()).title).toBe('Room Detail Test');
     });
 
     test('join-check returns 404 for nonexistent room', async ({ request }) => {
@@ -58,108 +59,43 @@ test.describe('Host Exam Flow', () => {
     });
   });
 
-  test.describe('Host UI flow', () => {
-    test('create room form loads on /host', async ({ page }) => {
-      await page.goto('/host');
-      await expect(page.getByLabel('Exam title')).toBeVisible();
-      await expect(page.getByLabel('Duration in minutes')).toBeVisible();
-      await expect(page.getByLabel('Max participants')).toBeVisible();
-      await expect(page.getByRole('button', { name: /create exam/i })).toBeVisible();
-    });
-
-    test('create room form submits and navigates to share screen', async ({ page }) => {
-      await page.goto('/host');
-      await page.getByLabel('Paper ID').fill(paperId);
-      await page.getByLabel('Exam title').fill('E2E Host Test');
-      await page.getByLabel('Duration in minutes').fill('30');
-      await page.getByLabel('Max participants').fill('3');
-      await page.getByRole('button', { name: /create exam/i }).click();
-
-      await expect(page.getByText(/share this link/i).or(page.getByText(/copy/i))).toBeVisible({ timeout: 10000 });
-    });
-  });
-
   test.describe('Join flow', () => {
-    test('join page loads for a valid room', async ({ page }) => {
-      const create = await (await fetch(`${API_BASE}/api/rooms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Join Test', paper_id: paperId, max_participants: 2, duration_minutes: 15 }),
-      })).json();
-
-      await page.goto(`/join/${create.room_id}`);
+    test('join by code lands on the room page', async ({ page }) => {
+      const room = await createRoom(paper, 'Join Test');
+      await page.goto('/join');
+      await page.getByLabel('Exam code').fill(room.room_id.toLowerCase());
+      await page.getByRole('button', { name: /continue/i }).click();
       await expect(page.getByText('Join Test')).toBeVisible();
-      await expect(page.getByLabel('Display name')).toBeVisible();
-      await expect(page.getByRole('button', { name: /join exam/i })).toBeVisible();
+      await expect(page.getByLabel('Your full name')).toBeVisible();
     });
 
     test('join page shows error for nonexistent room', async ({ page }) => {
       await page.goto('/join/ZZZZZZ');
-      await expect(page.getByText(/not found/i).or(page.getByText(/error/i))).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText(/not found/i)).toBeVisible({ timeout: 10000 });
     });
   });
 
-  test.describe('Multi-participant host-exam flow', () => {
-    test('create room, join as participant, host dashboard shows participant', async ({ browser }) => {
-      const apiBase = API_BASE;
+  test('student joins, host dashboard shows them live', async ({ browser }) => {
+    const room = await createRoom(paper, 'Multi E2E');
 
-      const createRes = await (await fetch(`${apiBase}/api/rooms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Multi E2E', paper_id: paperId, max_participants: 2, duration_minutes: 15 }),
-      })).json();
+    const hostPage = await browser.newPage();
+    await hostPage.addInitScript(([id, token]) => localStorage.setItem(`host_token_${id}`, token), [room.room_id, room.host_token]);
+    await hostPage.goto(`/host/${room.room_id}`);
+    await expect(hostPage.getByText(/waiting for students/i)).toBeVisible({ timeout: 15000 });
 
-      const { room_id } = createRes;
+    const joinPage = await browser.newPage();
+    await joinPage.goto(`/join/${room.room_id}`);
+    await joinPage.getByLabel('Your full name').fill('E2E Participant');
+    await joinPage.getByRole('button', { name: /join exam/i }).click();
 
-      const hostPage = await browser.newPage();
-      await hostPage.goto(`/host/${room_id}`);
-      await expect(hostPage.getByText(/waiting for participants/i)).toBeVisible({ timeout: 15000 });
-      await expect(hostPage.getByText(/connected/i)).toBeVisible({ timeout: 15000 });
+    // Lands on the exam instructions, not the landing screen.
+    await expect(joinPage).toHaveURL(new RegExp(`/exam/${room.room_id}$`));
+    await expect(joinPage.getByText(/before you start/i)).toBeVisible({ timeout: 15000 });
+    await expect(joinPage.getByRole('button', { name: /begin exam/i })).toBeVisible();
 
-      const joinPage = await browser.newPage();
-      await joinPage.goto(`/join/${room_id}`);
-      await joinPage.getByLabel('Display name').fill('E2E Participant');
-      await joinPage.getByRole('button', { name: /join exam/i }).click();
+    await expect(hostPage.getByText('E2E Participant')).toBeVisible({ timeout: 15000 });
 
-      await expect.poll(async () => {
-        const res = await fetch(`${apiBase}/api/rooms/${room_id}`, {
-          headers: { 'Content-Type': 'application/json' },
-        });
-        const room = await res.json();
-        return room.members.some((m: Record<string, unknown>) => m.display_name === 'E2E Participant');
-      }, { timeout: 15000 }).toBe(true);
-      await expect(hostPage.getByText(/E2E Participant/i)).toBeVisible({ timeout: 15000 });
-
-      const dashboard = await (await fetch(`${apiBase}/api/rooms/${room_id}`, {
-        headers: { 'Content-Type': 'application/json' },
-      })).json();
-      expect(dashboard.member_count).toBeGreaterThanOrEqual(1);
-      expect(dashboard.members.some((m: Record<string, unknown>) => m.display_name === 'E2E Participant')).toBe(true);
-
-      await hostPage.close();
-      await joinPage.close();
-    });
-
-    test('join flow lands participant on exam panel, not landing screen — regression', async ({ browser }) => {
-      const apiBase = API_BASE;
-
-      const createRes = await (await fetch(`${apiBase}/api/rooms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Regression E2E', paper_id: paperId, max_participants: 2, duration_minutes: 15 }),
-      })).json();
-
-      const { room_id } = createRes;
-
-      const joinPage = await browser.newPage();
-      await joinPage.goto(`/join/${room_id}`);
-      await joinPage.getByLabel('Display name').fill('Regression Participant');
-      await joinPage.getByRole('button', { name: /join exam/i }).click();
-
-      await expect(joinPage.getByText('Timed Exam')).toBeVisible({ timeout: 15000 });
-      await expect(joinPage.getByRole('button', { name: /begin exam/i })).toBeVisible();
-
-      await joinPage.close();
-    });
+    await hostPage.close();
+    await joinPage.close();
   });
 });

@@ -10,6 +10,8 @@ services:
       - CORS_ORIGINS=["http://localhost:3000","https://proctoriq-exam.vercel.app"]
       - SQLITE_PATH=data/proctoriq.db
       - PUBLIC_API_BASE_URL=http://localhost:8000
+    volumes:
+      - proctoriq-data:/app/data
     restart: unless-stopped
 
   frontend:
@@ -22,3 +24,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  proctoriq-data:

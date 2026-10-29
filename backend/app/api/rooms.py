@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import csv
+import hmac
 import io
+import secrets
 import zipfile
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -9,9 +11,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from backend.app.ws.room_handler import broadcast_room_update
+from backend.app.api.exam import end_room, require_host, shuffled_public_paper
+from backend.app.ws.room_handler import broadcast_room_update, member_view
 from backend.core.paper_store import InMemoryPaperStore
 from backend.core.room_store import InMemoryRoomStore
 from backend.cv.scoring import FlagEvent, compute_attention_score
@@ -36,7 +39,7 @@ def _get_paper_store(request: Request) -> InMemoryPaperStore:
 
 
 class JoinRoomRequest(BaseModel):
-    display_name: str
+    display_name: str = Field(max_length=60)
 
 
 def _get_room_store(request: Request) -> InMemoryRoomStore:
@@ -80,7 +83,7 @@ def _check_room_rate_limit(request: Request, key: str, max_per_hour: int = 100) 
     limits[key].append(now)
 
 
-def _check_join_rate_limit(request: Request, key: str, max_per_minute: int = 120) -> None:
+def _check_join_rate_limit(request: Request, key: str, max_per_minute: int = 600) -> None:
     """Simple in-memory per-app rate limiter using app.state."""
     import time
 
@@ -99,10 +102,20 @@ def _check_join_rate_limit(request: Request, key: str, max_per_minute: int = 120
     limits[key].append(now)
 
 
+async def _owns_paper(request: Request, paper: Any, token: str | None) -> bool:
+    if not token:
+        return False
+    if hmac.compare_digest(paper.host_token, token):
+        return True
+    host = await request.app.state.host_store.get_by_token(token)
+    return bool(host is not None and paper.host_id and host.host_id == paper.host_id)
+
+
 @router.post("", status_code=201)
 async def create_room(
     body: CreateRoomRequest,
     request: Request,
+    x_host_token: str | None = Header(default=None),
     store: InMemoryRoomStore = Depends(_get_room_store),
     paper_store: InMemoryPaperStore = Depends(_get_paper_store),
 ) -> dict[str, str]:
@@ -110,6 +123,8 @@ async def create_room(
     paper = await paper_store.get(body.paper_id)
     if paper is None:
         raise HTTPException(404, "Paper not found — create or select a paper first")
+    if not await _owns_paper(request, paper, x_host_token):
+        raise HTTPException(403, "Only the paper's author can start an exam with it")
     _check_room_rate_limit(request, get_remote_address(request))
     room = await store.create_room(
         title=body.title or paper.title,
@@ -127,11 +142,13 @@ async def create_room(
 @router.get("/{room_id}")
 async def get_room(
     room_id: str,
+    x_host_token: str | None = Header(default=None),
     store: InMemoryRoomStore = Depends(_get_room_store),
 ) -> dict[str, Any]:
     room = await store.get_room(room_id)
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found")
+    require_host(room, x_host_token)
     return {
         "room_id": room.room_id,
         "title": room.title,
@@ -140,36 +157,36 @@ async def get_room(
         "max_participants": room.max_participants,
         "status": room.status,
         "member_count": len(room.active_sessions),
-        "members": [
-            {
-                "session_id": m.session_id,
-                "display_name": m.display_name,
-                "score": m.score,
-                "current_state": m.current_state,
-                "elapsed_seconds": m.elapsed_seconds,
-                "event_count": m.event_count,
-                "joined_at": m.joined_at.isoformat(),
-            }
-            for m in room.active_sessions.values()
-        ],
+        "closed_at": room.closed_at.isoformat() if room.closed_at else None,
+        "members": [member_view(m) for m in room.active_sessions.values()],
     }
 
 
 @router.get("/{room_id}/paper")
 async def get_room_paper(
     room_id: str,
+    session_id: str = Query(default=""),
+    x_student_token: str | None = Header(default=None),
+    x_host_token: str | None = Header(default=None),
     store: InMemoryRoomStore = Depends(_get_room_store),
     paper_store: InMemoryPaperStore = Depends(_get_paper_store),
 ) -> dict[str, Any]:
     room = await store.get_room(room_id)
     if room is None:
         raise HTTPException(404, "Room not found")
+    member = room.active_sessions.get(session_id)
+    is_student = bool(
+        member and x_student_token and hmac.compare_digest(member.student_token, x_student_token)
+    )
+    is_host = bool(x_host_token and hmac.compare_digest(room.host_token, x_host_token))
+    if not (is_student or is_host):
+        raise HTTPException(403, "Join the exam to see its questions")
     if not room.paper_id:
         raise HTTPException(404, "No paper associated with this room")
     paper = await paper_store.get(room.paper_id)
     if paper is None:
         raise HTTPException(404, "Paper not found")
-    public = to_public(paper)
+    public = shuffled_public_paper(paper, session_id) if is_student else to_public(paper)
     return public.model_dump(mode="json")
 
 
@@ -217,8 +234,10 @@ async def join_room(
         raise HTTPException(status_code=410, detail="This exam has already ended")
 
     session_id = str(uuid4())
+    student_token = secrets.token_urlsafe(24)
     member = RoomMember(
         session_id=session_id,
+        student_token=student_token,
         display_name=body.display_name.strip() or "Student",
         score=0,
         current_state="waiting",
@@ -244,16 +263,17 @@ async def join_room(
         "duration_minutes": room.duration_minutes,
         "member_count": member_count,
         "session_id": session_id,
+        "student_token": student_token,
     }
 
 
 @router.post("/{room_id}/close", status_code=200)
 async def close_room(
     room_id: str,
-    store: InMemoryRoomStore = Depends(_get_room_store),
+    request: Request,
     _: None = Depends(_require_host_token),
 ) -> dict[str, str]:
-    room = await store.close_room(room_id)
+    room = await end_room(request.app, room_id)
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found")
     return {"room_id": room.room_id, "status": room.status}
@@ -317,6 +337,11 @@ async def get_room_reports(
             "pct_focused": pct_focused,
             "verdict": verdict.value,
             "signed_hash": signed_hash,
+            "status": session.status,
+            "marks": session.marks,
+            "max_marks": session.max_marks,
+            "percent": session.quiz_score,
+            "pending_manual": session.pending_manual,
         })
 
     if format == "zip":
@@ -352,6 +377,11 @@ async def _build_zip_response(
                 "pct_focused": r["pct_focused"],
                 "verdict": r["verdict"],
                 "signed_hash": r["signed_hash"],
+                "status": r["status"],
+                "marks": r["marks"],
+                "max_marks": r["max_marks"],
+                "percent": r["percent"],
+                "pending_manual": r["pending_manual"],
             })
             session = pdf_sessions.get(r["session_id"])
             if session:
@@ -361,7 +391,10 @@ async def _build_zip_response(
         csv_buf = io.StringIO()
         writer = csv.DictWriter(
             csv_buf,
-            fieldnames=["session_id", "display_name", "final_score", "pct_focused", "verdict", "signed_hash"],
+            fieldnames=[
+                "session_id", "display_name", "status", "marks", "max_marks", "percent",
+                "pending_manual", "final_score", "pct_focused", "verdict", "signed_hash",
+            ],
         )
         writer.writeheader()
         writer.writerows(csv_rows)

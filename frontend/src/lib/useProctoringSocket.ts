@@ -1,9 +1,7 @@
 import { useCallback, useRef } from 'react';
 import type { DetectionResult } from '../workers/detection.worker';
 import { WSClient, type WSStatus } from './ws';
-
-const API_BASE = import.meta.env.VITE_API_URL ?? '';
-const WS_BASE = API_BASE.replace(/^http/, 'ws');
+import { wsBase } from './api';
 
 export const NON_FOCUSED_STATES = new Set(['distracted', 'absent', 'drowsy', 'multi']);
 
@@ -12,6 +10,7 @@ export interface ProctoringSocketOptions {
   token?: string;
   onStatus?: (status: WSStatus) => void;
   onMessage?: (msg: unknown) => void;
+  onRejected?: (code: number) => void;
 }
 
 export function useProctoringSocket() {
@@ -35,6 +34,7 @@ export function useProctoringSocket() {
   }, []);
 
   const connect = useCallback((sessionId: string, options?: ProctoringSocketOptions) => {
+    wsRef.current?.disconnect();
     startTimeRef.current = Date.now();
     sessionIdRef.current = sessionId;
     prevAttentionRef.current = 'focused';
@@ -43,10 +43,8 @@ export function useProctoringSocket() {
     const params = new URLSearchParams();
     if (options?.token) params.set('token', options.token);
     if (options?.roomId) params.set('room_id', options.roomId);
-    const displayName = options?.roomId ? sessionStorage.getItem('exam_display_name') : null;
-    if (displayName) params.set('display_name', displayName);
     const qs = params.toString();
-    const wsUrl = `${WS_BASE}/ws/${sessionId}${qs ? `?${qs}` : ''}`;
+    const wsUrl = `${wsBase()}/ws/${sessionId}${qs ? `?${qs}` : ''}`;
     const ws = new WSClient(wsUrl);
 
     ws.onStatus((status) => {
@@ -64,6 +62,9 @@ export function useProctoringSocket() {
 
     if (options?.onMessage) {
       ws.onMessage(options.onMessage);
+    }
+    if (options?.onRejected) {
+      ws.onRejected(options.onRejected);
     }
 
     ws.connect();

@@ -1,7 +1,7 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Search, Stamp,
-  Copy, ArrowRight, Download, FileText, Shuffle, Lock, Globe,
+  Copy, ArrowRight, FileText, Shuffle, Lock, Globe,
   Users, Clock, Calendar, GripVertical, Sparkles, Bot
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
@@ -10,48 +10,20 @@ import type { Question, QuestionType, PaperSection } from "./types";
 import { QUESTION_TYPE_LABELS } from "./types";
 import { TemplateGallery } from "./TemplateGallery";
 import { HFChatPanel } from "./HFChatPanel";
+import { AnswerEditor, questionProblem, withTypeDefaults } from "./AnswerEditor";
+import { createLiveRoom, getOrCreateHostAccount } from "../../lib/api";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-const HOST_ACCOUNT_KEY = "proctoriq_host_account";
-
 type BuilderStep = "build" | "publish";
-
-interface HostAccount {
-  host_id: string;
-  host_token: string;
-}
 
 function generateId(): string {
   return `q_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function generateExamCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-}
-
-async function getOrCreateHostAccount(): Promise<HostAccount> {
-  const existing = localStorage.getItem(HOST_ACCOUNT_KEY);
-  if (existing) {
-    try {
-      const parsed = JSON.parse(existing) as HostAccount;
-      if (parsed.host_id && parsed.host_token) return parsed;
-    } catch {
-      localStorage.removeItem(HOST_ACCOUNT_KEY);
-    }
-  }
-
-  const response = await fetch(`${API_BASE}/api/hosts`, { method: "POST" });
-  if (!response.ok) throw new Error("Failed to create host account");
-  const account = await response.json() as HostAccount;
-  localStorage.setItem(HOST_ACCOUNT_KEY, JSON.stringify(account));
-  return account;
-}
-
 const EMPTY_QUESTION: Question = {
   id: "", type: "mcq-single", title: "", body: "", marks: 2,
   negativeMarks: 0, topic: "General", difficulty: "medium",
-  options: ["", ""], correctAnswer: "",
+  options: ["", "", "", ""], correctAnswer: "",
 };
 
 export function PaperBuilderPage() {
@@ -81,7 +53,6 @@ export function PaperBuilderPage() {
   const [paperId, setPaperId] = useState<string | null>(null);
   const [hostToken, setHostToken] = useState<string | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
-  const qrRef = useRef<HTMLDivElement>(null);
 
   const filteredQuestions = useMemo(() => {
     let qs = questionBank;
@@ -205,9 +176,19 @@ export function PaperBuilderPage() {
     setShowTemplates(false);
   }, [handleAddQuestion]);
 
+  const [newQuestionError, setNewQuestionError] = useState("");
+  const [goingLive, setGoingLive] = useState(false);
+
   const handleCreateQuestion = useCallback(() => {
-    if (!newQuestion.title.trim()) return;
-    const q: Question = { ...newQuestion, id: generateId() };
+    const problem = questionProblem(newQuestion);
+    setNewQuestionError(problem ?? "");
+    if (problem) return;
+    const q: Question = {
+      ...newQuestion,
+      id: generateId(),
+      title: newQuestion.title.trim(),
+      options: newQuestion.options?.map((o) => o.trim()),
+    };
     setQuestionBank((prev) => [...prev, q]);
     handleAddQuestion(q.id);
     setNewQuestion({ ...EMPTY_QUESTION, id: generateId() });
@@ -215,6 +196,23 @@ export function PaperBuilderPage() {
   }, [newQuestion, handleAddQuestion]);
 
   const handlePublish = useCallback(async () => {
+    setPublishError(null);
+    if (!title.trim()) {
+      setPublishError("Give the paper a title.");
+      return;
+    }
+    // Only questions placed in a section are part of the paper, in section order.
+    const ids = [...new Set(allSelectedIds)];
+    const paperQuestions = ids.map((id) => questionBank.find((q) => q.id === id)).filter(Boolean) as Question[];
+    const bad = paperQuestions.findIndex((q) => questionProblem(q) !== null);
+    if (paperQuestions.length === 0) {
+      setPublishError("Add at least one question to the paper.");
+      return;
+    }
+    if (bad !== -1) {
+      setPublishError(`Question ${bad + 1} ("${paperQuestions[bad].title || "untitled"}"): ${questionProblem(paperQuestions[bad])}`);
+      return;
+    }
     const payload = {
       title,
       subject,
@@ -222,7 +220,7 @@ export function PaperBuilderPage() {
       duration_minutes: parseInt(duration) || 60,
       shuffle_questions: shuffleQuestions,
       shuffle_options: shuffleOptions,
-      questions: questionBank.map(q => ({
+      questions: paperQuestions.map(q => ({
         id: q.id, type: q.type, title: q.title, body: q.body,
         marks: q.marks, negative_marks: q.negativeMarks,
         topic: q.topic, difficulty: q.difficulty,
@@ -241,8 +239,6 @@ export function PaperBuilderPage() {
       const paper = await resp.json();
       const hostToken = account.host_token;
       localStorage.setItem(`paper_token_${paper.id}`, paper.host_token);
-      const code = generateExamCode();
-      sessionStorage.setItem("exam_code", code);
       sessionStorage.setItem("paper_id", paper.id);
       setPaperId(paper.id);
       setHostToken(hostToken);
@@ -250,37 +246,24 @@ export function PaperBuilderPage() {
     } catch (err) {
       setPublishError(err instanceof Error ? err.message : "Failed to publish");
     }
-  }, [title, subject, instructions, duration, shuffleQuestions, shuffleOptions, sections, questionBank]);
+  }, [title, subject, instructions, duration, shuffleQuestions, shuffleOptions, sections, questionBank, allSelectedIds]);
 
-  const examCode = useMemo(() => sessionStorage.getItem("exam_code") ?? generateExamCode(), [step]);
   const seshPaperId = useMemo(() => sessionStorage.getItem("paper_id"), [step]);
   const displayPaperId = paperId || seshPaperId || "";
-  const hostPageUrl = useMemo(() => displayPaperId ? `/host` : `/builder`, [displayPaperId]);
 
-  const handleDownloadQR = useCallback(() => {
-    const svgEl = qrRef.current?.querySelector("svg");
-    if (!svgEl) return;
-    const svgData = new XMLSerializer().serializeToString(svgEl);
-    const canvas = document.createElement("canvas");
-    canvas.width = 600;
-    canvas.height = 600;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const img = new Image();
-    const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    img.onload = () => {
-      ctx.fillStyle = "#F4F1EA";
-      ctx.fillRect(0, 0, 600, 600);
-      ctx.drawImage(img, 50, 50, 500, 500);
-      URL.revokeObjectURL(url);
-      const a = document.createElement("a");
-      a.href = canvas.toDataURL("image/png");
-      a.download = `exam-${examCode}-qr.png`;
-      a.click();
-    };
-    img.src = url;
-  }, [examCode]);
+  const handleGoLive = useCallback(async () => {
+    if (!displayPaperId) return;
+    setGoingLive(true);
+    setPublishError(null);
+    try {
+      const room = await createLiveRoom(displayPaperId);
+      window.location.href = `/host/${room.room_id}`;
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Could not start the exam");
+      setGoingLive(false);
+    }
+  }, [displayPaperId]);
+
 
   // ===== BUILD STEP =====
   if (step === "build") {
@@ -298,6 +281,9 @@ export function PaperBuilderPage() {
               <span className="font-mono text-sm text-graphite">
                 {allTotalQuestions} questions &middot; {allTotalMarks} marks
               </span>
+              {publishError && (
+                <span className="max-w-xs font-body text-xs text-stamp" role="alert">{publishError}</span>
+              )}
               <Button variant="primary" onClick={handlePublish} disabled={allTotalQuestions === 0}>
                 <Stamp size={16} /> Publish Exam
               </Button>
@@ -364,7 +350,7 @@ export function PaperBuilderPage() {
                 {showNewQuestion && (
                   <div className="border-b-[2px] border-stamp bg-paper p-3">
                     <div className="grid gap-2">
-                      <select value={newQuestion.type} onChange={(e) => setNewQuestion((p) => ({ ...p, type: e.target.value as QuestionType }))}
+                      <select value={newQuestion.type} onChange={(e) => setNewQuestion((p) => withTypeDefaults(p, e.target.value as QuestionType))}
                         className="border-[2px] border-ink bg-paper-2 px-2 py-1 font-body text-xs text-ink outline-none" aria-label="Question type">
                         {Object.entries(QUESTION_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       </select>
@@ -374,8 +360,9 @@ export function PaperBuilderPage() {
                       <textarea value={newQuestion.body} onChange={(e) => setNewQuestion((p) => ({ ...p, body: e.target.value }))}
                         placeholder="Question body" rows={3} aria-label="Question body"
                         className="border-[2px] border-ink bg-paper-2 px-2 py-1 font-body text-xs text-ink outline-none resize-none" />
+                      <AnswerEditor q={newQuestion} onChange={setNewQuestion} />
                       <div className="flex gap-2">
-                        <input type="number" value={newQuestion.marks} onChange={(e) => setNewQuestion((p) => ({ ...p, marks: parseInt(e.target.value) || 0 }))}
+                        <input type="number" value={newQuestion.marks} onChange={(e) => setNewQuestion((p) => ({ ...p, marks: Number(e.target.value) || 0 }))}
                           placeholder="Marks" aria-label="Marks"
                           className="w-16 border-[2px] border-ink bg-paper-2 px-2 py-1 font-mono text-xs text-ink outline-none" />
                         <select value={newQuestion.difficulty} onChange={(e) => setNewQuestion((p) => ({ ...p, difficulty: e.target.value as "easy" | "medium" | "hard" }))}
@@ -388,6 +375,7 @@ export function PaperBuilderPage() {
                           placeholder="Topic" aria-label="Topic"
                           className="flex-1 border-[2px] border-ink bg-paper-2 px-2 py-1 font-body text-xs text-ink outline-none" />
                       </div>
+                      {newQuestionError && <p className="font-body text-[11px] text-stamp" role="alert">{newQuestionError}</p>}
                       <div className="flex gap-2">
                         <Button variant="primary" onClick={handleCreateQuestion} className="flex-1 text-xs py-1.5">
                           <Plus size={12} /> Add
@@ -734,24 +722,6 @@ export function PaperBuilderPage() {
               )}
             </div>
 
-            <div className="flex gap-2">
-              <Button variant="default" onClick={handleDownloadQR} className="text-xs px-4">
-                <Download size={14} /> Download PNG
-              </Button>
-              <Button variant="ghost" onClick={() => {
-                const svg = qrRef.current?.querySelector("svg");
-                if (svg) {
-                  const data = new XMLSerializer().serializeToString(svg);
-                  const a = document.createElement("a");
-                  a.href = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(data);
-                  a.download = `exam-${examCode}-qr.svg`;
-                  a.click();
-                }
-              }} className="text-xs px-4">
-                <Download size={14} /> SVG
-              </Button>
-            </div>
-
             {/* Exam details */}
             <div className="w-full border-[3px] border-ink bg-paper-2 p-4 grid gap-2">
               <div className="flex items-center justify-between">
@@ -769,8 +739,8 @@ export function PaperBuilderPage() {
 
             {/* Action */}
             <div className="flex w-full gap-3">
-              <Button variant="primary" className="flex-1" onClick={() => { window.location.href = hostPageUrl; }}>
-                <ArrowRight size={16} /> Go to Host Dashboard
+              <Button variant="primary" className="flex-1" onClick={() => void handleGoLive()} disabled={goingLive || !displayPaperId}>
+                <ArrowRight size={16} /> {goingLive ? "Starting…" : "Go live now"}
               </Button>
               <Button variant="default" onClick={() => {
                 const pid = displayPaperId;
@@ -779,6 +749,10 @@ export function PaperBuilderPage() {
                 <Copy size={16} /> Copy Paper ID
               </Button>
             </div>
+
+            <a href="/host" className="font-body text-xs text-graphite underline">
+              Or start it later from the host page
+            </a>
 
             {publishError && (
               <div className="w-full border-[3px] border-stamp bg-paper-2 px-3 py-2 font-body text-xs text-stamp" role="alert">

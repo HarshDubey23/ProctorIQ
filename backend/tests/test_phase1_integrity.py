@@ -275,7 +275,7 @@ class TestCleanupTasks:
         assert room.room_id in store._rooms
 
         # Manually set last_activity to 3 hours ago
-        store._last_activity[room.room_id] = datetime.now(UTC) - timedelta(hours=3)
+        store._last_activity[room.room_id] = datetime.now(UTC) - timedelta(days=31)
 
         await store.cleanup_stale_rooms()
         assert room.room_id not in store._rooms
@@ -293,13 +293,23 @@ class TestCleanupTasks:
         session = Session(
             id="stale-session",
             start=datetime.now(UTC) - timedelta(hours=2),
-            mode="exam",
+            mode="selftest",
         )
         await store.create_session(session)
 
         await store.cleanup_stale_sessions(timeout_minutes=60)
         fetched = await store.get_session("stale-session")
         assert fetched is None
+
+    @pytest.mark.asyncio
+    async def test_session_store_cleanup_keeps_long_running_exams(self) -> None:
+        """A 3-hour exam must not be reaped by the 60-minute idle timeout."""
+        store = InMemorySessionStore()
+        await store.create_session(Session(
+            id="long-exam", start=datetime.now(UTC) - timedelta(hours=2), mode="exam",
+        ))
+        await store.cleanup_stale_sessions(timeout_minutes=60)
+        assert await store.get_session("long-exam") is not None
 
     @pytest.mark.asyncio
     async def test_session_store_cleanup_keeps_active_sessions(self) -> None:
@@ -348,7 +358,7 @@ class TestCleanupTasks:
             client.post("/api/sessions", json={
                 "id": "cleanup-candidate",
                 "start": old_start,
-                "mode": "exam",
+                "mode": "selftest",
             })
 
             store: InMemorySessionStore = app.state.session_store

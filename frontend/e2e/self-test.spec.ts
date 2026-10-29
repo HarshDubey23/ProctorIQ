@@ -29,7 +29,7 @@ test.describe('Self-Test Flow', () => {
     await page.goto('/');
     await page.getByRole('button', { name: /host exam/i }).click();
     await page.waitForURL('**/host');
-    await expect(page.getByLabel('Exam title')).toBeVisible();
+    await expect(page.getByText(/start a live exam/i)).toBeVisible();
   });
 
   test('landing page shows all 6 bento card features', async ({ page }) => {
