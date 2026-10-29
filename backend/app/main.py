@@ -36,8 +36,9 @@ async def _close_expired_rooms(app: Any) -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
 
-    if settings.sqlite_path:
-        await init_db(settings.sqlite_path)
+    db_target = settings.database_url or settings.sqlite_path
+    if db_target:
+        await init_db(db_target)
         app.state.session_store = SqliteSessionStore()
         app.state.room_store = SqliteRoomStore()
         app.state.paper_store = SqlitePaperStore()
@@ -82,7 +83,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await cleanup_task
         except asyncio.CancelledError:
             pass
-        if settings.sqlite_path:
+        if db_target:
             await close_db()
 
 
