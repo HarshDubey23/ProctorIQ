@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import './styles/tokens.css';
 import './styles/globals.css';
 import { AppRoot } from './components/layout/AppRoot';
-import { CohortDashboard } from './features/cohort/CohortDashboard';
 import { HostExamCreate } from './features/host-exam/HostExamCreate';
 import { HostExamShare } from './features/host-exam/HostExamShare';
 import { HostDashboard } from './features/host-exam/HostDashboard';
@@ -108,7 +107,7 @@ function Root() {
   }
 
   if (cohortId) {
-    return <CohortDashboard roomId={cohortId} />;
+    return <HostDashboard roomId={cohortId} />;
   }
 
   if (joinRoomId) {

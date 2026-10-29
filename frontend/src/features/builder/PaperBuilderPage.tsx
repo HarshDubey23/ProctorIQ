@@ -13,7 +13,7 @@ import { HFChatPanel } from "./HFChatPanel";
 import { AnswerEditor, questionProblem, withTypeDefaults } from "./AnswerEditor";
 import { createLiveRoom, getOrCreateHostAccount } from "../../lib/api";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+import { API_BASE } from "../../lib/api";
 type BuilderStep = "build" | "publish";
 
 function generateId(): string {

@@ -231,15 +231,7 @@ export function SettingsPanel() {
           Watch live attention scores for all students in a single dashboard.
         </p>
         <button
-          onClick={async () => {
-            try {
-              const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/rooms`, { method: 'POST' });
-              if (res.ok) {
-                const data = await res.json();
-                window.open(`/cohort/${data.room_id}`, '_blank');
-              }
-            } catch { /* noop */ }
-          }}
+          onClick={() => { window.location.href = '/host'; }}
           className="rounded-lg px-4 py-2.5 font-sans text-[12px] uppercase tracking-[0.1em] transition-colors"
           style={{
             backgroundColor: 'rgba(14,107,92,0.1)',

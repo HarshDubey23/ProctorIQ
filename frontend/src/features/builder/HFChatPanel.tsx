@@ -4,7 +4,7 @@ import { Button } from "../../components/ui/button";
 import type { Question, QuestionType } from "./types";
 import { QUESTION_TYPE_LABELS } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+import { API_BASE } from "../../lib/api";
 
 interface ChatEntry {
   id: string;
@@ -156,7 +156,10 @@ export function HFChatPanel({ onAddQuestions, onRemoveQuestion, paperContext = [
         {
           id: `err_${Date.now()}`,
           role: "assistant",
-          content: error instanceof Error ? error.message : "AI generation failed.",
+          // fetch() rejects with a TypeError only when no response came back at all.
+          content: error instanceof TypeError
+            ? "Can't reach the ProctorIQ server. Check that the backend is running and VITE_API_URL points to it."
+            : error instanceof Error ? error.message : "AI generation failed.",
         },
       ]);
     } finally {
