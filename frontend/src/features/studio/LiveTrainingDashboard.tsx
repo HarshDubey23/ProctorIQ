@@ -3,7 +3,7 @@ import { Cpu, RefreshCw } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Button } from "../../components/ui/button";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+import { API_BASE } from "../../lib/api";
 
 interface QueueStatus {
   status: "idle" | "running";

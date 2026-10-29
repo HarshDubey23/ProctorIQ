@@ -21,7 +21,8 @@ VALID_LABELS = {"focused", "distracted", "absent", "drowsy"}
 MAX_CONTRIBUTORS = 30
 CLIPS_PER_CONTRIBUTOR = 8
 MAX_CLIP_SECONDS = 20.0
-MAX_LANDMARK_BYTES = 200_000
+# The browser sends at most 150 frames x 936 coords rounded to 4 decimals (~1.1 MB as JSON).
+MAX_LANDMARK_BYTES = 1_500_000
 
 
 @router.post("/clip", status_code=201, response_model=ClipAccepted)

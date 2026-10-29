@@ -107,3 +107,36 @@ class TestCollect:
             body["landmarks"] = [[0.0] * 100 for _ in range(20)]  # 100 coords instead of 936
             resp = client.post("/api/collect/clip", json=body)
             assert resp.status_code == 422
+
+    def test_browser_sized_clip_is_accepted_and_loadable(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        """What the collect page actually sends: 150 frames of 4-decimal coords."""
+        import json
+        import random
+        from pathlib import Path
+
+        saved: dict[str, Any] = {}
+
+        async def _capture(path: str, payload: dict[str, Any], message: str) -> None:
+            saved["path"], saved["payload"] = path, payload
+
+        monkeypatch.setattr("backend.app.api.collect.commit_json_file", _capture)
+        rng = random.Random(0)
+        body = self._valid_payload()
+        body["landmarks"] = [[round(rng.random(), 4) for _ in range(936)] for _ in range(150)]
+        with TestClient(_make_app()) as client:
+            resp = client.post("/api/collect/clip", json=body)
+        assert resp.status_code == 201, resp.text
+
+        # The committed file must be readable by the training loader, frame for frame.
+        from ml.data.loaders import iter_raw_clips
+
+        target = Path(tmp_path) / saved["path"].removeprefix("ml/data/raw/")
+        target.parent.mkdir(parents=True)
+        target.write_text(json.dumps(saved["payload"]))
+        clips = list(iter_raw_clips(Path(tmp_path)))
+        assert len(clips) == 1
+        arr, label, _ = clips[0]
+        assert arr.shape == (150, 936) and label == "focused"
+        assert abs(float(arr[0][0]) - body["landmarks"][0][0]) < 1e-6

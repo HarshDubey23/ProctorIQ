@@ -52,6 +52,9 @@ class TrainingQueueState:
             await q.put(event)
 
     async def on_clip_accepted(self) -> None:
+        # The deployed API image ships without ml/ or torch; training runs on the owner's machine.
+        if not (ML_DIR / "train_incremental.py").exists():
+            return
         async with self._lock:
             self.unconsumed_clips += 1
             if self.status == "idle" and self.unconsumed_clips >= RETRAIN_BATCH_SIZE:
