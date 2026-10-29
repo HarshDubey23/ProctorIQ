@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import os
@@ -33,22 +34,36 @@ def _headers(token: str) -> dict[str, str]:
     }
 
 
+# Every commit moves the branch head, so GitHub rejects simultaneous commits to one
+# branch with 409. Commit one at a time; retry covers writers outside this process.
+_commit_lock = asyncio.Lock()
+_RETRYABLE = (409, 429, 500, 502, 503)
+_ATTEMPTS = 4
+
+
 async def commit_json_file(path: str, payload: dict[str, Any], message: str) -> None:
     token = get_collect_github_token()
     if not token:
         raise CollectionUnavailableError("COLLECT_GITHUB_TOKEN is not configured")
     content = base64.b64encode(json.dumps(payload).encode()).decode()
     url = f"{_API}/repos/{_github_repo()}/contents/{path}"
-    async with httpx.AsyncClient(timeout=15) as client:
-        for attempt in range(2):
-            resp = await client.put(
-                url,
-                headers=_headers(token),
-                json={"message": message, "content": content, "branch": _github_branch()},
-            )
-            if resp.status_code in (429, 500, 502, 503) and attempt == 0:
-                import asyncio
-                await asyncio.sleep(1)
+    async with _commit_lock, httpx.AsyncClient(timeout=30) as client:
+        for attempt in range(_ATTEMPTS):
+            try:
+                resp = await client.put(
+                    url,
+                    headers=_headers(token),
+                    json={"message": message, "content": content, "branch": _github_branch()},
+                )
+            except httpx.TransportError as exc:
+                if attempt == _ATTEMPTS - 1:
+                    raise CollectionUnavailableError(f"Could not reach GitHub: {exc}") from exc
+                await asyncio.sleep(0.5 * 2**attempt)
+                continue
+            if resp.status_code in _RETRYABLE:
+                if attempt == _ATTEMPTS - 1:
+                    raise CollectionUnavailableError(f"GitHub kept refusing the commit (HTTP {resp.status_code})")
+                await asyncio.sleep(0.5 * 2**attempt)
                 continue
             if resp.status_code in (404, 422):
                 raise CollectionUnavailableError(
@@ -60,7 +75,8 @@ async def commit_json_file(path: str, payload: dict[str, Any], message: str) -> 
                     "GitHub token rejected — confirm COLLECT_GITHUB_TOKEN is valid and scoped "
                     "to Contents: Read and write on this repo"
                 )
-            resp.raise_for_status()
+            if resp.is_error:
+                raise CollectionUnavailableError(f"GitHub rejected the commit (HTTP {resp.status_code})")
             return
 
 
