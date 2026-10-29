@@ -11,9 +11,8 @@ import { QUESTION_TYPE_LABELS } from "./types";
 import { TemplateGallery } from "./TemplateGallery";
 import { HFChatPanel } from "./HFChatPanel";
 import { AnswerEditor, questionProblem, withTypeDefaults } from "./AnswerEditor";
-import { createLiveRoom, getOrCreateHostAccount } from "../../lib/api";
+import { createLiveRoom, getOrCreateHostAccount, hostPost } from "../../lib/api";
 
-import { API_BASE } from "../../lib/api";
 type BuilderStep = "build" | "publish";
 
 function generateId(): string {
@@ -229,15 +228,8 @@ export function PaperBuilderPage() {
       sections: sections.map(s => ({ id: s.id, title: s.title, question_ids: s.questionIds })),
     };
     try {
-      const account = await getOrCreateHostAccount();
-      const resp = await fetch(`${API_BASE}/api/papers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Host-Token": account.host_token },
-        body: JSON.stringify(payload),
-      });
-      if (!resp.ok) throw new Error("Failed to publish paper");
-      const paper = await resp.json();
-      const hostToken = account.host_token;
+      const paper = await hostPost<{ id: string; host_token: string }>("/api/papers", payload, "Couldn't publish");
+      const hostToken = (await getOrCreateHostAccount()).host_token;
       localStorage.setItem(`paper_token_${paper.id}`, paper.host_token);
       sessionStorage.setItem("paper_id", paper.id);
       setPaperId(paper.id);
