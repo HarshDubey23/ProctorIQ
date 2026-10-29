@@ -1,328 +1,93 @@
 # ProctorIQ
 
-**Browser-first, privacy-preserving exam integrity platform.**  
-All ML inference runs client-side via MediaPipe WASM + ONNX Runtime Web.  
-Only structured attention events — never video — reach the server.
+**Exam-integrity analytics that run in the browser. Video never leaves the device.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/HarshDubey23/ProctorIQ/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/HarshDubey23/ProctorIQ/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
-**Live frontend:** https://proctoriq-exam.vercel.app (Vercel, deployed 2026-10-15). The Self-Test
-runs entirely in your browser (MediaPipe + the 27 KB ONNX model are served from this repo; the
-model file's size and the landmarker's SHA-256 were checked against the deployment).
-**The API isn't deployed yet,** so paper building, live exams and signed reports don't work on
-the live site. Run them locally with the Quick Start below. An earlier README linked
-`proctoriq.vercel.app` (404) and `proctor-iq.vercel.app` is an unrelated app, so don't use either.
+The browser finds 478 face landmarks (MediaPipe WASM) and classifies attention with a 27 KB ONNX
+model. Only small events like `{"event_type": "distracted", "timestamp_s": 12.5}` go to the
+server, which re-scores them itself and HMAC-signs the report, so editing a score in DevTools
+doesn't produce a valid report.
 
----
+## Try it
 
-## Key Numbers (read the caveats)
+**Live (frontend only):** https://proctoriq-exam.vercel.app → **Self-Test**. Allow the camera;
+everything runs on your device.
+Exams, paper building and signed reports need the API, which isn't hosted yet. Run it locally:
 
-| Metric | Value | What it actually measures |
-|--------|-------|---------------------------|
-| Held-out test accuracy | **99.22%** | 384 windows cut from **30 held-out clips** (clip-level split, so no window leakage) |
-| Macro F1 | **0.9918** | Same 30 clips |
-| 5-fold CV macro F1 | 0.995 ± 0.003 | Folds over *windows* of training clips; overlapping windows from one clip can sit in different folds, so this is optimistic |
-| Model size (ONNX) | ~27 KB | `frontend/public/models/attention_model.onnx` |
-| Per-frame inference | <15 ms (ML) / ~0.5 ms (rules) | Self-reported in `benchmark_report.json`; device not re-measured |
+## Run it locally
 
-**Scope of these numbers.** The dataset is 200 *acted* 3-second clips (50 per class) recorded
-in 5 sessions on one 720p webcam. The number of distinct participants isn't recorded, so
-cross-person generalization hasn't been measured. The figures above show the classifier separates
-these four acted states in-distribution. They don't measure accuracy on real exam footage,
-other people, other cameras, or natural (non-acted) behaviour. The raw clips aren't in the
-repository, so the benchmark can't be re-run from a fresh clone.
-
-Next evaluation needed before any accuracy claim: subject-disjoint (leave-one-person-out)
-evaluation with several consenting participants, plus per-condition results (lighting,
-glasses, distance).
-
-Full benchmark, confusion matrix and ablation: [docs/BENCHMARK.md](docs/BENCHMARK.md) ·
-architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
----
-
-## The Real Problem: Tamper-Proof Exam Integrity
-
-Most proctoring demos compute the student's score in JavaScript, store it in localStorage, and send it to the server as a claim. Nothing stops the student from opening DevTools, setting `final_score = 0.95`, and downloading a pristine report.
-
-ProctorIQ solves this differently. The client streams structured **events** (focused, distracted, drowsy, absent) over WebSocket — not scores, not verdicts. The server:
-
-1. Re-computes the attention score from the raw event sequence
-2. Applies the same scoring rules the client uses
-3. HMAC-SHA256 signs the canonical payload (session_id, score, verdict, event list)
-4. Stores only the signature; the signed PDF report includes the hash
-
-If someone PATCHes the session record with a forged `quiz_score`, the stored signature will **not** match the re-computed signature at verification time. The report seal reads **"Server-Verified"** only when the hash chain is intact.
-
-> Full reasoning at [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#11-hmac-sha256-report-signing-vs-server-database-as-source-of-truth).
-
----
-
-## What's New in v2
-
-ProctorIQ v2 introduces a complete visual overhaul and a set of new features:
-
-### Neo-Brutalist Design System
-- **Examination Hall Brutalism** — hard edges, thick borders, hard offset shadows, honest materials
-- **Printerly ink colors** — Paper (#F4F1EA), Ink (#1A1A17), Stamp Red (#9B2D20), Ledger Green (#2F5D50)
-- **Four-font system** — Archivo Expanded (display), Public Sans (UI body), Space Mono (data), Saira Condensed (labels)
-- **Zero border-radius** — everything is sharp and structural
-
-### Paper Builder (Teacher Flow)
-- Full exam creation with searchable question bank
-- Drag-reorder questions, section grouping, live mark summary
-- AI Paper Drafting — generate draft questions by topic/difficulty
-- Starter Template Gallery — pre-built exam templates (MCQ Quiz, Coding Test, Viva-Style)
-- Publish with unique link + downloadable QR code (SVG/PNG)
-- Access modes: Open link or Roster-restricted
-
-### Live Host Dashboard
-- Control-room style on Ink-Slate surface
-- Cohort Pulse Wall of live StampedSeals — one per student
-- Four signal-channel colors (Gaze, Head-Pose, Audio Anomaly, Tab-Focus)
-- Flagged-student filtering, WebSocket-broadcast updates
-- End exam + download signed PDF reports as ZIP
-
-### Student Exam UI (Calm & Fair)
-- Minimal chrome, no surveillance feel
-- Single centered question card with mono timer
-- Auto-save with seamless reconnect (IndexedDB-based)
-- Camera/mic permission + calibration flow
-- **No Stamp Red, no alert flags** — student-calm guarantee
-
-### Model Card & Research Page
-- Published at [`/model`](/model) — a complete Model Card (Google format)
-- Hero stats, pipeline diagram, data collection methodology, 5-fold CV chart
-- Confusion matrix, per-class metrics, ablation study (interactive toggles)
-- Cross-device latency table, limitations, ethical considerations, future work
-- **Live demo widget** — runs the real 27 KB ONNX model in your browser
-- All numbers sourced from [`ml/checkpoints/benchmark_report.json`](ml/checkpoints/benchmark_report.json)
-
-### Integrity Verification
-- SHA-256 HMAC-signed reports
-- Server-Verified vs Local Draft seal on every report
-- Verification endpoint re-checks the hash chain
-
-### Additional Features
-- **Hindi/English UI toggle** — language switcher on landing page
-- **Teacher Replay (God View)** — per-student timeline scrubber
-- **Accommodation Profiles** — extended time, relaxed proctoring per student
-- **StampedSeal** — circular official seal with live confidence waveform
-- **Vapour Text Effect** — animated headline cycling through "EXAM / INTEGRITY / PROVEN / PROCTORIQ"
-
----
-
-## Quick Start
+With Docker (any OS):
 
 ```bash
-git clone https://github.com/HarshDubey23/ProctorIQ.git && cd ProctorIQ
-python -m venv backend/.venv && backend/.venv/Scripts/pip install -r backend/requirements.txt
-cd frontend && npm install && cd ..
+git clone https://github.com/HarshDubey23/ProctorIQ.git
+cd ProctorIQ
 docker compose up --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) (or [http://localhost:5173](http://localhost:5173) for Vite dev server).
+Open http://localhost:3000. API health: http://localhost:8000/health.
 
-## Production Deployment Checklist
-
-- Set `ENVIRONMENT=production` and a newly generated `REPORT_SIGNING_SECRET`.
-- Set `PUBLIC_API_BASE_URL` to the public API origin used in generated reports.
-- Set `CORS_ORIGINS` to the exact frontend origin, with no trailing slash.
-- Set `VITE_API_URL` and `VITE_WS_URL` to the deployed API HTTP and WebSocket URLs.
-- Keep `STUDIO` local-only; it is not an internet-facing service.
-- Verify `/health`, a WebSocket connection, report generation, and report verification after deployment.
-
-Do not commit `.env`, API tokens, model training data, or generated secrets.
-
-### Manual start (without Docker)
+Without Docker (Python 3.11+, Node 20+), in two terminals:
 
 ```bash
-# Terminal 1 — Backend
-cd backend
-uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+# 1 · API (Windows: .venv\Scripts\activate instead of source)
+python -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt
+uvicorn backend.app.main:app --port 8000
 
-# Terminal 2 — Frontend
-cd frontend
-npm run dev
+# 2 · frontend
+cd frontend && npm install && npm run dev      # http://localhost:5173
 ```
 
----
+No keys are needed. Optional: `HF_API_TOKEN` enables AI question drafting in the paper builder.
 
-## How It Works
+| Page | What it does |
+|---|---|
+| `/` → Self-Test | live attention feedback, fully on-device |
+| `/builder` | build an exam paper, publish a link and QR code |
+| `/host` | run a live exam and watch every student's status |
+| `/model` | model card: data, metrics, live demo of the ONNX model |
 
-### Architecture at a Glance
+## How it works
 
 ```
-Browser (MediaPipe WASM → ONNX Runtime Web) ──WebSocket──> FastAPI Backend
-       │                                                    │
-       │  structured events only (no video)                  │  HMAC-SHA256 sign
-       │                                                    │  PDF report generation
-       ▼                                                    ▼
-  StampedSeal (live confidence)                      Signed Report (tamper-proof)
+Webcam → MediaPipe (478 landmarks) → head pose + eye openness → ONNX model ──events──► FastAPI
+                                                                                   re-score · HMAC sign · PDF
 ```
 
-- **Client**: MediaPipe extracts 478 face landmarks → solvePnP computes head pose (yaw/pitch/roll) + EAR → 6-D Kalman filter smooths → rule engine + optional 1D-CNN → events streamed via WebSocket
-- **Server**: Receives events → recomputes score → HMAC-SHA256 signs canonical payload → generates PDF report with embedded timeline
-- **No video stored**: The server never receives or stores video frames — only `{"event_type": "distracted", "timestamp_s": 12.5, "confidence": 0.87}`
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · scoring: [docs/SCORING.md](docs/SCORING.md).
 
-Full benchmark at [docs/BENCHMARK.md](docs/BENCHMARK.md).
+## Results (read the scope)
 
----
+| Metric | Value |
+|---|---|
+| Held-out accuracy | 99.22% (384 windows from 30 held-out clips) |
+| Macro F1 | 0.9918 |
+| Model size | ~27 KB ONNX |
 
-## What You Can Do With It
+The data is 200 **acted** 3-second clips from one 720p webcam, split by clip. That shows the
+classifier separates four acted states; it does **not** measure accuracy on other people,
+cameras or real exams. The raw clips aren't in the repo. Full benchmark: [docs/BENCHMARK.md](docs/BENCHMARK.md).
 
-### 1. Build & Publish a Paper (Teacher)
+## Tests
 
-Open the **Paper Builder** at `/builder` to create an exam from scratch or use a starter template. Add questions from a tagged bank, organize into sections, set marks and duration. Publish with a single click — get a unique link and downloadable QR code.
+```bash
+pytest backend/tests                         # 150 tests
+cd frontend && npm run lint && npm test && npm run build
+```
 
-### 2. Host a Live Exam
+## Deploy
 
-Click "Host Exam" from the landing page. Share the join link or QR code with participants. The **Mission Control** dashboard (Ink-Slate) shows:
-- Live Cohort Pulse Wall with per-student stamped seals
-- Sort by flagged participants or search by name
-- WebSocket-broadcast updates with <5ms latency
-- End the exam and download signed PDF reports as ZIP
+API: any Docker host that supports WebSockets (`backend/Dockerfile`). Set
+`ENVIRONMENT=production`, a random `REPORT_SIGNING_SECRET`, `CORS_ORIGINS` (JSON list of your
+frontend URLs) and `PUBLIC_API_BASE_URL`. Frontend: build `frontend/` with `VITE_API_URL` set to
+the API's URL (the WebSocket URL is derived from it). Steps: [DEPLOYMENT.md](DEPLOYMENT.md).
 
-### 3. Take an Exam (Student)
+## Limits
 
-Scan the QR or click the link → enter your name → camera permission + calibration → the exam begins. A calm, minimal UI with a mono timer and question cards. **No surveillance feel, no red alerts.**
+- Accuracy across people, cameras and lighting is unmeasured; that needs consenting participants.
+- Face video is biometric data. Get consent and check local rules before using this on students.
+- Sessions live in memory unless `SQLITE_PATH` points at persistent storage.
 
-### 4. Self-Test / Focus Coach
-
-Open the app, grant camera access, and see the **StampedSeal** respond in real time. No signup, no server round-trip — everything runs locally.
-
-### 5. Verify Report Integrity
-
-Each signed PDF report includes a SHA-256 HMAC. The verification endpoint re-computes the expected hash: if it matches, the seal reads **"Server-Verified"** — if not, **"Local Draft"**.
-
-### 6. Explore the Model
-
-Visit [`/model`](/model) to see the full Model Card — hero stats, pipeline diagram, data collection methodology, CV results, confusion matrix, per-class metrics, interactive ablation study, latency table, limitations, and a **live demo widget** that runs the real 27 KB ONNX model in your browser.
-
-### 7. Contribute Data
-
-Help improve the model by contributing face landmark clips at [`/collect`](/collect). Eight short webcam tasks (~3 minutes total). No video is saved — only anonymized landmark patterns are committed to the `collected-data` branch.
-
-See [docs/COLLECTION.md](docs/COLLECTION.md) for details and local collection options.
-
----
-
-## Routes
-
-| Route | Description |
-|-------|-------------|
-| `/` | Main landing — marketing hero, feature grid, model proof band |
-| `/builder` | Paper Builder — create, assemble, and publish exams |
-| `/host` | Create a new exam room |
-| `/host/{room_id}` | Mission Control dashboard for an existing room |
-| `/join/{room_id}` | Participant join page (no signup required) |
-| `/cohort/{room_id}` | Live cohort pulse wall |
-| `/model` | Model Card — full research page with benchmark, charts, live demo |
-| `/collect` | Contribute face landmark clips to improve the model |
-| `/styleguide` | Visual design system reference |
-
----
-
-## Design — "Examination Hall Brutalism"
-
-ProctorIQ v2's visual identity is inspired by official examination documents that behave like live instruments:
-
-- **Exposed structure** — thick visible borders, hard grid lines, stamped forms
-- **Honest material** — flat printerly ink colors on paper-white and slate-dark surfaces
-- **Heavy mass** — hard offset drop shadows (6px 6px 0 Ink), never soft/glow shadows
-- **Four-typeface system** — Archivo Expanded (display), Public Sans (UI body), Space Mono (data), Saira Condensed (labels)
-- **StampedSeal** — circular official seal with live confidence waveform ring
-- **Zero border-radius** — everything is sharp and structural
-- **No neon, no glow, no gradients** — every color is a mature, printerly ink
-
----
-
-## Test Coverage
-
-| Layer | Tool | What's tested |
-|-------|------|---------------|
-| Backend unit | pytest + mypy | API routes, session store, signature verification, scoring logic |
-| Frontend type/lint | tsc + eslint | TypeScript strict mode, code quality |
-| E2E (browser) | Playwright | Self-test flow, host-exam room creation + multi-participant join, API integrity tampering regression |
-| Integrity regression | Playwright + API | PATCH with forged score → verify server-computed value prevails; event tampering → signature mismatch |
-
-E2E tests use `--use-fake-device-for-media-stream` so they run in CI without a real webcam.
-
----
-
-## Limitations
-
-### In-Memory Stores (Single Worker)
-
-Session and room data lives in Python `dict` objects — no process restart survival, no multi-worker support. The backend is pinned to `--workers 1` in production. If horizontal scaling becomes necessary, swap `InMemorySessionStore`/`InMemoryRoomStore` for Redis-backed implementations behind the same `typing.Protocol` interface. Estimated effort: ~2 days.
-
-### Client-Side Detection Trust Boundary
-
-The HMAC signature protects the server-computed *score* from tampering, but cannot prevent fabricated landmark *input*. Any proctoring system without a locked-down browser environment faces the same constraint.
-
-### Other Known Constraints
-
-- **solvePnP degrades past ~70° yaw** — Profile view causes landmark occlusion
-- **Low light (< 50 lux)** — MediaPipe landmark confidence drops; rule-based fallback engages
-- **Dark skin in low light** — Documented ~8-12% lower detection rate in MediaPipe
-- **IndexedDB storage** — ~50MB cap (~500 sessions) before export/clear required
-- **Single-person focus** — Multi-face detection logs but does not distinguish individuals
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Face Detection | MediaPipe Tasks-Vision WASM |
-| ML Inference | ONNX Runtime Web (WASM backend, ~27 KB ONNX model) |
-| Frontend | React 18 + TypeScript + Vite + Tailwind CSS |
-| State | Zustand 4 + IndexedDB (idb) |
-| Real-time | WebSocket (FastAPI + custom reconnection client) |
-| Backend | FastAPI + uvicorn (single worker) |
-| PDF Reports | ReportLab + Pillow |
-| Signing | SHA-256 HMAC (backend hashlib + frontend Web Crypto) |
-| Animation | Framer Motion |
-| Charts | Recharts |
-| CV | OpenCV (solvePnP) + filterpy (Kalman) |
-| ML Training | PyTorch + scikit-learn + ONNX |
-
----
-
-## API Reference
-
-<details>
-<summary>REST endpoints and WebSocket protocol</summary>
-
-### REST Endpoints
-
-| Method | Route | Description |
-|--------|-------|-------------|
-| `GET` | `/health` | Health check → `{"status": "ok", "version": "0.1.0"}` |
-| `GET` | `/api/sessions` | List sessions (`?limit=10&offset=0`) |
-| `POST` | `/api/sessions` | Create session → `201` |
-| `GET` | `/api/sessions/{id}` | Get session by ID |
-| `PATCH` | `/api/sessions/{id}` | Update session |
-| `DELETE` | `/api/sessions/{id}` | Blank session → `204` |
-| `GET` | `/api/sessions/{id}/report` | Download signed PDF report |
-| `POST` | `/api/rooms` | Create cohort room → `201` |
-| `GET` | `/api/rooms/{id}` | Get room details + members |
-| `GET` | `/api/rooms/{id}/join-check` | Check if room is joinable |
-| `POST` | `/api/rooms/{id}/close` | Close exam (X-Host-Token required) |
-| `GET` | `/api/rooms/{id}/reports` | Participant reports (`?format=zip`) |
-| `POST` | `/api/verify` | Verify signature → `{valid: bool}` |
-| `GET` | `/api/verify/{id}` | Get stored SHA-256 hash |
-
-### WebSocket
-
-- `/ws/{session_id}` — Session event stream (client sends events, server broadcasts ticks)
-- `/ws/room/{room_id}` — Cohort broadcast (server broadcasts member updates)
-
-</details>
-
----
-
-## License
-
-MIT © 2026 Harsh Dubey. See [LICENSE](LICENSE).
+MIT licensed.
