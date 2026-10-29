@@ -75,7 +75,12 @@ export function TaskRunner({ task, progress, onClipRecorded }: TaskRunnerProps) 
         if (timerRef.current) clearInterval(timerRef.current);
         setRecording(false);
         setDone(true);
-        onClipRecorded(framesRef.current, task.seconds);
+        // Skip the first second (reaction time) and keep 5 s at ~30 fps: 25 training
+        // windows per clip at ~1 MB instead of shipping the whole 12-20 s recording.
+        const frames = framesRef.current;
+        const clip = (frames.length >= 180 ? frames.slice(30, 180) : frames.slice(-150))
+          .map((f) => f.map((v) => Math.round(v * 1e4) / 1e4));
+        onClipRecorded(clip, clip.length / 30);
       }
     }, 100);
   };
