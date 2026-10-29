@@ -20,7 +20,6 @@ from backend.models.paper import (
 
 logger = logging.getLogger(__name__)
 
-_API = "https://router.huggingface.co/v1/chat/completions"
 
 
 class HFNotConfiguredError(Exception):
@@ -105,7 +104,7 @@ async def _post_chat_completion(
     async with httpx.AsyncClient(timeout=60) as client:
         for _ in range(3):
             try:
-                resp = await client.post(_API, headers=headers, json=body)
+                resp = await client.post(settings.hf_api_url, headers=headers, json=body)
                 resp.raise_for_status()
                 content = resp.json()["choices"][0]["message"]["content"]
                 return _extract_json(content), settings.hf_model_id

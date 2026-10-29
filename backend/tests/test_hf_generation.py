@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
+from backend.core.config import get_settings
 
 
 class _FakeHFResponse:
@@ -82,7 +83,7 @@ class TestHFGeneration:
             data = resp.json()
             assert data["generated"] == 1
             assert data["questions"][0]["correct_answer"] == "Paris"
-            assert data["model_used"] == "openai/gpt-oss-120b:fastest"
+            assert data["model_used"] == get_settings().hf_model_id
 
     def test_malformed_questions_are_dropped(self, monkeypatch: pytest.MonkeyPatch) -> None:
         async def _fake_post(self: Any, *args: Any, **kwargs: Any) -> _FakeHFResponse:

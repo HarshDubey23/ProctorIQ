@@ -24,6 +24,11 @@ class SessionRow(SQLModel, table=True):
     verdict: str | None = None
     events_json: str = "[]"
     benchmark_json: str | None = None
+    # Answers, marks and exam status; one JSON column so new fields need no migration.
+    extra_json: str = "{}"
+
+
+_EXTRA_FIELDS = ("student_answers", "status", "marks", "max_marks", "manual_marks", "pending_manual")
 
 
 class WsTokenRow(SQLModel, table=True):
@@ -95,7 +100,7 @@ class InMemorySessionStore:
             now = datetime.now(UTC)
             stale = []
             for sid, sess in self._sessions.items():
-                if sess.end is None and sess.start:
+                if sess.end is None and sess.start and sess.mode != "exam":
                     elapsed = (now - sess.start).total_seconds()
                     if elapsed > timeout_minutes * 60:
                         stale.append(sid)
@@ -138,7 +143,9 @@ def _session_from_row(row: SessionRow) -> Session:
     verdict_val: Verdict | None = None
     if row.verdict:
         verdict_val = Verdict(row.verdict)
+    extra = json.loads(row.extra_json) if row.extra_json else {}
     return Session(
+        **extra,
         id=row.id,
         start=datetime.fromisoformat(row.start),
         end=datetime.fromisoformat(row.end) if row.end else None,
@@ -164,6 +171,7 @@ def _row_from_session(session: Session) -> SessionRow:
         verdict=session.verdict.value if session.verdict else None,
         events_json=json.dumps([ev.model_dump() for ev in session.events]),
         benchmark_json=json.dumps(session.benchmark.model_dump()) if session.benchmark else None,
+        extra_json=session.model_dump_json(include=set(_EXTRA_FIELDS)),
     )
 
 
@@ -213,6 +221,7 @@ class SqliteSessionStore:
             row.verdict = new_row.verdict
             row.events_json = new_row.events_json
             row.benchmark_json = new_row.benchmark_json
+            row.extra_json = new_row.extra_json
             await db.commit()
             await db.refresh(row)
             return _session_from_row(row)
@@ -232,7 +241,7 @@ class SqliteSessionStore:
         async with get_session() as db:
             now = datetime.now(UTC)
             result = await db.execute(
-                select(SessionRow).where(SessionRow.end == null())
+                select(SessionRow).where(SessionRow.end == null(), SessionRow.mode != "exam")
             )
             rows = result.scalars().all()
             for row in rows:

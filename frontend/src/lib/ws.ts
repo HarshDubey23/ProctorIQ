@@ -26,6 +26,7 @@ export class WSClient {
   private onMessageCb: MessageHandler | null = null;
   private onStatusCb: StatusHandler | null = null;
   private onErrorCb: ErrorHandler | null = null;
+  private onRejectedCb: ((code: number) => void) | null = null;
 
   constructor(url: string) {
     this.url = url;
@@ -51,10 +52,16 @@ export class WSClient {
       this.startHeartbeat();
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (ev: CloseEvent) => {
       if (this.destroyed) return;
       this.setStatus('disconnected');
       this.stopHeartbeat();
+      // 44xx = the server refused this client (bad token, opened elsewhere); retrying won't help.
+      if (ev.code >= 4400 && ev.code < 4500) {
+        this.destroyed = true;
+        this.onRejectedCb?.(ev.code);
+        return;
+      }
       this.scheduleReconnect();
     };
 
@@ -100,6 +107,11 @@ export class WSClient {
 
   onStatus(cb: StatusHandler): this {
     this.onStatusCb = cb;
+    return this;
+  }
+
+  onRejected(cb: (code: number) => void): this {
+    this.onRejectedCb = cb;
     return this;
   }
 

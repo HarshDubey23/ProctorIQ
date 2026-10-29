@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     public_api_base_url: str = "http://localhost:8000"
     hf_api_token: str = ""
     hf_model_id: str = "openai/gpt-oss-120b:fastest"
+    # Any OpenAI-compatible chat endpoint, e.g. Gemini's:
+    # https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
+    hf_api_url: str = "https://router.huggingface.co/v1/chat/completions"
 
     @field_validator("cors_origins", mode="before")
     @classmethod

@@ -15,7 +15,6 @@ from backend.app.ws.room_handler import broadcast_room_update
 from backend.core.room_store import InMemoryRoomStore
 from backend.core.session_store import SessionStore
 from backend.cv.kalman import EarKalman, HeadPoseKalman
-from backend.models.room import RoomMember
 from backend.models.session import BenchmarkResult, Event
 from backend.models.ws import (
     WsBenchmarkEvent,
@@ -46,6 +45,29 @@ class ConnectionState:
     ear_kalman: EarKalman = field(default_factory=EarKalman)
     pose_kalman: HeadPoseKalman = field(default_factory=HeadPoseKalman)
 
+    session_start: datetime | None = None
+    flag_counts: dict[str, int] = field(default_factory=dict)
+    flags_total: int = 0
+
+
+# One live socket per student; the host pushes warnings / end-of-exam through it.
+_session_sockets: dict[str, WebSocket] = {}
+_session_sockets_lock = asyncio.Lock()
+MAX_FLAGS_PER_SESSION = 5000
+MEMBER_UPDATE_EVERY_S = 2.0
+
+
+async def send_to_session(session_id: str, payload: dict[str, Any]) -> bool:
+    async with _session_sockets_lock:
+        ws = _session_sockets.get(session_id)
+    if ws is None:
+        return False
+    try:
+        await ws.send_json(payload)
+        return True
+    except Exception:
+        return False
+
 
 async def _send_ticks(
     websocket: WebSocket,
@@ -58,6 +80,7 @@ async def _send_ticks(
     room_store: InMemoryRoomStore | None = None
     if room_id:
         room_store = cast(InMemoryRoomStore, websocket.app.state.room_store)
+    last_member_update = 0.0
 
     while not stop_event.is_set():
         tick = WsOutboundTick(
@@ -76,19 +99,22 @@ async def _send_ticks(
         )
         state.events_buffer.clear()
 
-        if room_store and room_id:
+        now = time.monotonic()
+        if room_store and room_id and now - last_member_update >= MEMBER_UPDATE_EVERY_S:
+            last_member_update = now
+            elapsed = 0
+            if state.session_start is not None:
+                elapsed = int((datetime.now(UTC) - state.session_start).total_seconds())
             try:
-                member = RoomMember(
-                    session_id=session_id,
-                    display_name=display_name or "Student",
-                    score=int(state.running_score),
-                    current_state=state.attention_state,
-                    elapsed_seconds=int(time.time()),
-                    event_count=len(state.events_buffer),
-                    joined_at=datetime.now(UTC),
-                )
-                await room_store.upsert_member(room_id, member)
-                await broadcast_room_update(room_id, room_store)
+                await room_store.patch_member(room_id, session_id, {
+                    "score": int(state.running_score),
+                    "current_state": state.attention_state,
+                    "elapsed_seconds": max(0, elapsed),
+                    "event_count": state.flags_total,
+                    "flags": dict(state.flag_counts),
+                    "last_seen": datetime.now(UTC),
+                })
+                await broadcast_room_update(room_id, room_store, force=False)
             except Exception:
                 pass
 
@@ -111,11 +137,20 @@ async def _handle_flag(
         enriched_details["client_ear_raw"] = round(state.client_ear_raw, 4)
         enriched_details["server_ear"] = round(state.ear, 4)
 
+    if state.flags_total >= MAX_FLAGS_PER_SESSION:
+        return
+    # Server clock, so a reconnect or a tampered client can't move events around.
+    timestamp_s = ev.timestamp_s
+    if state.session_start is not None:
+        timestamp_s = max(0.0, (datetime.now(UTC) - state.session_start).total_seconds())
+    state.flags_total += 1
+    state.flag_counts[ev.event_type] = state.flag_counts.get(ev.event_type, 0) + 1
+
     event = Event(
         id=uuid4().hex,
         session_id=session_id,
-        event_type=ev.event_type,
-        timestamp_s=ev.timestamp_s,
+        event_type=ev.event_type[:40],
+        timestamp_s=timestamp_s,
         confidence=ev.confidence,
         details=enriched_details,
     )
@@ -133,8 +168,11 @@ async def _handle_flag(
 
 
 async def _handle_state(ev: WsStateEvent, state: ConnectionState) -> None:
-    state.attention_state = ev.attention_state
+    state.attention_state = ev.attention_state[:20]
     state.face_count = ev.face_count
+    # Exponential moving average of "focused", 0-100, for the live dashboard.
+    focused = 100.0 if ev.attention_state == "focused" and ev.face_count <= 1 else 0.0
+    state.running_score = 0.9 * state.running_score + 0.1 * focused
 
     # Client-reported raw values
     client_ear = ev.ear
@@ -199,7 +237,7 @@ async def _handle_benchmark(ev: WsBenchmarkEvent, session_id: str, store: Sessio
 
 
 async def ws_handler(websocket: WebSocket, session_id: str) -> None:
-    state = ConnectionState()
+    state = ConnectionState(running_score=100.0)
     store: SessionStore = cast(SessionStore, websocket.app.state.session_store)
 
     query_params = dict(websocket.query_params)
@@ -209,9 +247,47 @@ async def ws_handler(websocket: WebSocket, session_id: str) -> None:
         await websocket.close(code=4401)
         return
 
+    session = await store.get_session(session_id)
+    if session is not None:
+        state.session_start = session.start
+        for e in session.events:
+            state.flags_total += 1
+            state.flag_counts[e.event_type] = state.flag_counts.get(e.event_type, 0) + 1
+
+    # Room membership and name come from the server, not from the query string.
+    room_store = websocket.app.state.room_store
+    requested_room = query_params.get("room_id")
+    if requested_room:
+        room = await room_store.get_room(requested_room)
+        member = room.active_sessions.get(session_id) if room else None
+        if member is None:
+            await websocket.close(code=4403)
+            return
+        state.room_id = requested_room
+        state.display_name = member.display_name
+
     await websocket.accept()
-    state.room_id = query_params.get("room_id")
-    state.display_name = query_params.get("display_name")
+    if session is not None and session.status != "in_progress":
+        await websocket.send_json({"type": "finalized", "status": session.status})
+        await websocket.close()
+        return
+
+    async with _session_sockets_lock:
+        previous = _session_sockets.get(session_id)
+        _session_sockets[session_id] = websocket
+    if previous is not None:
+        # Same attempt opened twice (second tab or device): keep the newest, flag it.
+        try:
+            await previous.close(code=4409, reason="Exam opened somewhere else")
+        except Exception:
+            pass
+        await _handle_flag(
+            WsFlagEvent(event_type="multiple_connections", timestamp_s=0.0),
+            session_id, state, store,
+        )
+    if state.room_id:
+        await room_store.patch_member(state.room_id, session_id, {"status": "in_progress"})
+        await broadcast_room_update(state.room_id, room_store)
 
     stop_event = asyncio.Event()
     tick_task = asyncio.create_task(
@@ -246,6 +322,15 @@ async def ws_handler(websocket: WebSocket, session_id: str) -> None:
             await tick_task
         except asyncio.CancelledError:
             pass
+        async with _session_sockets_lock:
+            replaced = _session_sockets.get(session_id) is not websocket
+            if not replaced:
+                _session_sockets.pop(session_id, None)
+        if state.room_id and not replaced:
+            latest = await store.get_session(session_id)
+            if latest is not None and latest.status == "in_progress":
+                await room_store.patch_member(state.room_id, session_id, {"status": "disconnected"})
+                await broadcast_room_update(state.room_id, room_store)
 
 
 router = APIRouter()

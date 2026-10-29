@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import FastAPI
 from loguru import logger
@@ -11,28 +12,24 @@ from loguru import logger
 from backend.core.accommodation_store import InMemoryAccommodationStore
 from backend.core.config import get_settings
 from backend.core.database import close_db, init_db
-from backend.core.host_store import InMemoryHostStore
-from backend.core.paper_store import InMemoryPaperStore
+from backend.core.host_store import InMemoryHostStore, SqliteHostStore
+from backend.core.paper_store import InMemoryPaperStore, SqlitePaperStore
 from backend.core.room_store import InMemoryRoomStore, SqliteRoomStore
 from backend.core.session_store import InMemorySessionStore, SqliteSessionStore
 from backend.core.training_queue import TrainingQueueState
 
 
-async def _close_expired_rooms(store: InMemoryRoomStore | SqliteRoomStore) -> None:
+async def _close_expired_rooms(app: Any) -> None:
+    from backend.app.api.exam import end_room
+
     now = datetime.now(UTC)
-    if isinstance(store, (InMemoryRoomStore,)):
-        room_ids = list(store._rooms.keys())
-    else:
-        return  # SqliteRoomStore handles expiry via cleanup_stale_rooms
-    for rid in room_ids:
-        room = await store.get_room(rid)
+    store: InMemoryRoomStore | SqliteRoomStore = app.state.room_store
+    for room in await store.list_open_rooms():
         if (
-            room is not None
-            and room.status == "open"
-            and room.duration_minutes is not None
+            room.duration_minutes is not None
             and (now - room.created_at).total_seconds() > room.duration_minutes * 60
         ):
-            await store.close_room(rid)
+            await end_room(app, room.room_id)
 
 
 @asynccontextmanager
@@ -43,17 +40,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await init_db(settings.sqlite_path)
         app.state.session_store = SqliteSessionStore()
         app.state.room_store = SqliteRoomStore()
+        app.state.paper_store = SqlitePaperStore()
+        app.state.host_store = SqliteHostStore()
     else:
         app.state.session_store = InMemorySessionStore()
         app.state.room_store = InMemoryRoomStore()
-    app.state.paper_store = InMemoryPaperStore()
+        app.state.paper_store = InMemoryPaperStore()
+        app.state.host_store = InMemoryHostStore()
     app.state.accommodation_store = InMemoryAccommodationStore()
-    app.state.host_store = InMemoryHostStore()
     app.state.training_queue = TrainingQueueState()
 
     async def _periodic_cleanup() -> None:
+        tick = 0
         while True:
-            await asyncio.sleep(300)
+            # Exam end times need to be prompt; store cleanup can be lazy.
+            await asyncio.sleep(15)
+            tick += 1
+            try:
+                await _close_expired_rooms(app)
+            except Exception as exc:
+                logger.exception("Close expired rooms failed: {}", exc)
+            if tick % 20:
+                continue
             try:
                 await app.state.room_store.cleanup_stale_rooms()
             except Exception as exc:
@@ -64,10 +72,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 )
             except Exception as exc:
                 logger.exception("Session cleanup failed: {}", exc)
-            try:
-                await _close_expired_rooms(app.state.room_store)
-            except Exception as exc:
-                logger.exception("Close expired rooms failed: {}", exc)
 
     cleanup_task = asyncio.create_task(_periodic_cleanup())
     try:
@@ -85,6 +89,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     from backend.app.api.accommodation import router as accommodation_router
     from backend.app.api.collect import router as collect_router
+    from backend.app.api.exam import router as exam_router
     from backend.app.api.health import router as health_router
     from backend.app.api.hf_chat import router as hf_chat_router
     from backend.app.api.hosts import router as hosts_router
@@ -115,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(papers_router, prefix="/api")
     app.include_router(sessions_router, prefix="/api")
     app.include_router(verify_router, prefix="/api")
+    app.include_router(exam_router, prefix="/api")
     app.include_router(rooms_router, prefix="/api")
     app.include_router(ws_router)
     app.include_router(room_ws_router)

@@ -10,6 +10,12 @@ PENALTIES: dict[str, float] = {
     "absent": -2.0,
     "drowsy": -1.0,
     "multi_face": -3.0,
+    "multi": -3.0,  # the browser model's label for more than one face
+    "fullscreen_exit": -2.0,
+    "copy_paste": -1.0,
+    "devtools": -2.0,
+    # "multiple_connections" is shown to the host but not scored: a dropped
+    # Wi-Fi reconnect looks the same as a second tab.
     "tab_switch": -2.0,
     # Window blur is slightly less severe than a full tab switch —
     # it may be triggered by alt-tab to another window while the

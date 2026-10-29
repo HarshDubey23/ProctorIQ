@@ -1,337 +1,238 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { PublicQuestion } from './types';
-import { saveSession } from '../../lib/db';
-import type { StoredSession, StoredEvent } from '../../lib/db';
+import { API_BASE } from '../../lib/api';
 import { useProctoringSocket } from '../../lib/useProctoringSocket';
 import type {
+  AnswerMap,
+  ExamAttempt,
+  ExamResult,
   ExamState,
-  ExamAnswer,
   ProctorEvent,
   ProctorEventType,
-  ServerExamResults,
+  PublicPaper,
 } from './types';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '';
+const AUTOSAVE_DEBOUNCE_MS = 1500;
 
-function createInitialAnswers(questionCount: number): ExamAnswer[] {
-  return Array.from({ length: questionCount }, (_, i) => ({ questionId: `${i}`, selectedIndex: null }));
+interface StartResponse {
+  session_id: string;
+  ws_token: string;
+  status: ExamResult['status'];
+  started_at: string;
+  deadline: string | null;
+  server_now: string;
+  answers: AnswerMap;
+  paper: PublicPaper;
+  result: ExamResult | null;
 }
 
-export function useExamSession(roomId?: string) {
-  const [state, setState] = useState<ExamState>('idle');
-  const [countdownValue, setCountdownValue] = useState(3);
-  const [answers, setAnswers] = useState<ExamAnswer[]>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(15 * 60);
-  const [events, setEvents] = useState<ProctorEvent[]>([]);
-  const [submittedAt, setSubmittedAt] = useState<number | null>(null);
-  const [sessionId, setSessionId] = useState('');
-  const [wsToken, setWsToken] = useState('');
-  const [serverResults, setServerResults] = useState<ServerExamResults | null>(null);
-  const [sessionRegistered, setSessionRegistered] = useState(false);
-  const [questions, setQuestions] = useState<PublicQuestion[]>([]);
-  const [examDurationSec, setExamDurationSec] = useState(15 * 60);
-  const [loadingPaper, setLoadingPaper] = useState(true);
+async function api<T>(path: string, attempt: ExamAttempt, init: RequestInit = {}): Promise<T> {
+  const resp = await fetch(`${API_BASE}/api/rooms/${attempt.roomId}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', 'X-Student-Token': attempt.token, ...init.headers },
+  });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => null);
+    throw Object.assign(new Error(body?.detail ?? `HTTP ${resp.status}`), { status: resp.status });
+  }
+  return resp.json() as Promise<T>;
+}
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+const startedKey = (a: ExamAttempt) => `exam_started_${a.sessionId}`;
+
+export function useExamSession(attempt: ExamAttempt) {
+  const [state, setState] = useState<ExamState>('loading');
+  const [paper, setPaper] = useState<PublicPaper | null>(null);
+  const [answers, setAnswers] = useState<AnswerMap>({});
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [events, setEvents] = useState<ProctorEvent[]>([]);
+  const [result, setResult] = useState<ExamResult | null>(null);
+  const [error, setError] = useState('');
+  const [hostWarning, setHostWarning] = useState('');
+  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'offline'>('saved');
+  const [kickedReason, setKickedReason] = useState('');
+
   const stateRef = useRef(state);
   stateRef.current = state;
-  const startTimeRef = useRef<number>(0);
-  const eventsRef = useRef<ProctorEvent[]>([]);
-  const answersRef = useRef<ExamAnswer[]>(answers);
-  answersRef.current = answers;
-  const { connect: wsConnect, disconnect: wsDisconnect, tick: wsTick, sendFlag: wsSendFlag } = useProctoringSocket();
+  const answersRef = useRef<AnswerMap>({});
+  const dirtyRef = useRef<AnswerMap>({});
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deadlineRef = useRef<number | null>(null);
+  const clockOffsetRef = useRef(0);
+  const submitRef = useRef<() => Promise<void>>(async () => {});
+  const { connect, disconnect, tick, sendFlag } = useProctoringSocket();
 
-  const clearTimers = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+  const loadResult = useCallback(async () => {
+    try {
+      setResult(await api<ExamResult>(`/my-result?session_id=${attempt.sessionId}`, attempt));
+    } catch {
+      /* the results screen says when it's unavailable */
     }
-    if (countdownRef.current) {
-      clearInterval(countdownRef.current);
-      countdownRef.current = null;
-    }
-  }, []);
+    disconnect();
+    setState('results');
+  }, [attempt, disconnect]);
 
-  useEffect(() => {
-    if (!roomId) {
-      setLoadingPaper(false);
+  const flush = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const pending = dirtyRef.current;
+    if (Object.keys(pending).length === 0) return;
+    dirtyRef.current = {};
+    setSaveState('saving');
+    try {
+      await api('/answers', attempt, {
+        method: 'PUT',
+        body: JSON.stringify({ session_id: attempt.sessionId, answers: pending }),
+      });
+      setSaveState('saved');
+    } catch (err) {
+      // Keep unsaved answers for the next try unless the server says the attempt is closed.
+      if ((err as { status?: number }).status !== 409) {
+        dirtyRef.current = { ...pending, ...dirtyRef.current };
+      }
+      setSaveState('offline');
+    }
+  }, [attempt]);
+
+  const onSocketMessage = useCallback((raw: unknown) => {
+    const msg = raw as { type?: string; message?: string; reason?: string };
+    if (msg.type === 'host_warning' && msg.message) setHostWarning(msg.message);
+    if (msg.type === 'exam_ended') void submitRef.current();
+    if (msg.type === 'terminated') setKickedReason(msg.reason ?? 'The host ended your attempt.');
+    if (msg.type === 'finalized' && stateRef.current !== 'submitting') void loadResult();
+  }, [loadResult]);
+
+  const applyStart = useCallback((data: StartResponse) => {
+    setPaper(data.paper);
+    answersRef.current = data.answers ?? {};
+    setAnswers(answersRef.current);
+    if (data.status !== 'in_progress') {
+      setResult(data.result);
+      setState('results');
       return;
     }
-    fetch(`${API_BASE}/api/rooms/${roomId}/paper`)
-      .then(r => {
-        if (!r.ok) throw new Error('Failed to fetch paper');
-        return r.json();
-      })
-      .then(p => {
-        setQuestions(p.questions);
-        setExamDurationSec(p.duration_minutes * 60);
-        setTimeRemaining(p.duration_minutes * 60);
-        setAnswers(createInitialAnswers(p.questions.length));
-        setLoadingPaper(false);
-      })
-      .catch(() => {
-        setLoadingPaper(false);
-      });
-  }, [roomId]);
+    clockOffsetRef.current = Date.parse(data.server_now) - Date.now();
+    deadlineRef.current = data.deadline ? Date.parse(data.deadline) : null;
+    localStorage.setItem(startedKey(attempt), '1');
+    connect(attempt.sessionId, {
+      roomId: attempt.roomId,
+      token: data.ws_token,
+      onMessage: onSocketMessage,
+      onRejected: (code) => {
+        if (code === 4409) setKickedReason('This exam was opened in another tab or device.');
+      },
+    });
+    setState('in_progress');
+  }, [attempt, connect, onSocketMessage]);
 
-  async function registerSession(sid: string, startTs: number): Promise<string> {
+  const begin = useCallback(async () => {
+    setError('');
+    setState('loading');
     try {
-      const response = await fetch(`${API_BASE}/api/sessions`, {
+      applyStart(await api<StartResponse>('/start', attempt, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: sid,
-          start: new Date(startTs).toISOString(),
-          mode: 'exam',
-        }),
-      });
-      if (response.ok) {
-        const data: { ws_token?: string } = await response.json();
-        const token = data.ws_token ?? '';
-        setWsToken(token);
-        setSessionRegistered(true);
-        return token;
-      }
-    } catch {
-      // Backend unreachable — exam can still proceed offline
+        body: JSON.stringify({ session_id: attempt.sessionId }),
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start the exam');
+      setState('error');
     }
-    setSessionRegistered(true);
-    return '';
-  }
+  }, [attempt, applyStart]);
+
+  // A reload mid-exam resumes straight away; a fresh attempt waits on the instructions screen.
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (resumedRef.current) return;
+    resumedRef.current = true;
+    if (localStorage.getItem(startedKey(attempt))) void begin();
+    else setState('idle');
+  }, [attempt, begin]);
+  useEffect(() => () => disconnect(), [disconnect]);
 
   const submit = useCallback(async () => {
     if (stateRef.current !== 'in_progress') return;
-    clearTimers();
-    wsDisconnect();
-    const now = Date.now();
-    const storedEvents: StoredEvent[] = eventsRef.current.map((e) => ({
-      eventType: e.type,
-      timestampS: Math.floor((e.timestamp - startTimeRef.current) / 1000),
-      confidence: null,
-      details: e.details ? { details: e.details } : null,
-    }));
-    const sessionRecord: StoredSession = {
-      id: sessionId,
-      start: startTimeRef.current,
-      end: now,
-      mode: 'exam',
-      quizScore: null,
-      finalScore: null,
-      pctFocused: null,
-      verdict: null,
-      events: storedEvents,
-      benchmark: null,
-    };
-    saveSession(sessionRecord).catch(() => {});
-    setSubmittedAt(now);
-    setState('submitted');
-
-    // Submit answers to backend for server-side scoring
-    const ans = answersRef.current;
-    const submission = {
-      answers: ans.map(a => ({
-        question_id: questions[parseInt(a.questionId)]?.id ?? a.questionId,
-        selected_answer: a.selectedIndex != null ? String(a.selectedIndex) : null,
-      })),
-    };
+    setState('submitting');
+    await flush();
     try {
-      const submitResponse = await fetch(`${API_BASE}/api/sessions/${sessionId}/submit`, {
+      setResult(await api<ExamResult>('/submit', attempt, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(submission),
-      });
-      if (submitResponse.ok) {
-        const sessionResponse = await fetch(`${API_BASE}/api/sessions/${sessionId}`);
-        if (sessionResponse.ok) {
-          const data: {
-            quiz_score: number | null;
-            final_score: number | null;
-            pct_focused: number | null;
-            verdict: ServerExamResults['verdict'];
-            events: Array<{ event_type: string }>;
-          } = await sessionResponse.json();
-          const eventCounts: Record<string, number> = {};
-          for (const event of data.events) {
-            eventCounts[event.event_type] = (eventCounts[event.event_type] ?? 0) + 1;
-          }
-          setServerResults({
-            quizScore: data.quiz_score,
-            finalScore: data.final_score,
-            pctFocused: data.pct_focused,
-            verdict: data.verdict,
-            eventCounts,
-          });
-        }
+        body: JSON.stringify({ session_id: attempt.sessionId, answers: answersRef.current }),
+      }));
+    } catch (err) {
+      if ((err as { status?: number }).status !== 409) {
+        setError('Could not reach the server. Your answers are autosaved; reconnect and submit again.');
+        setState('in_progress');
+        return;
       }
-    } catch {
-      // Server results remain unavailable; the UI will make that explicit.
+      await loadResult();
+      return;
     }
+    disconnect();
+    setState('results');
+  }, [attempt, flush, disconnect, loadResult]);
+  submitRef.current = submit;
 
-    setTimeout(() => setState('results'), 600);
-  }, [clearTimers, wsDisconnect, sessionId, questions]);
-
-  const startTimer = useCallback(() => {
-    timerRef.current = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          submit();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, [submit]);
-
-  const startCountdown = useCallback(() => {
-    setCountdownValue(3);
-    countdownRef.current = setInterval(() => {
-      setCountdownValue((prev) => {
-        if (prev <= 1) {
-          if (countdownRef.current) clearInterval(countdownRef.current);
-          countdownRef.current = null;
-          startTimeRef.current = Date.now();
-          const sid = sessionStorage.getItem('exam_session_id') || crypto.randomUUID();
-          sessionStorage.removeItem('exam_session_id');
-          setSessionId(sid);
-          eventsRef.current = [];
-          setSessionRegistered(false);
-          setWsToken('');
-          setServerResults(null);
-          setState('in_progress');
-          registerSession(sid, startTimeRef.current).then((token) => {
-            const rid = sessionStorage.getItem('exam_room_id') || undefined;
-            wsConnect(sid, { roomId: rid, token });
-          });
-          startTimer();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, [startTimer, wsConnect]);
-
-  const requestWebcam = useCallback(() => {
-    setState('webcam_permission');
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: 'user' }, audio: false })
-      .then((stream) => {
-        stream.getTracks().forEach((t) => t.stop());
-        startCountdown();
-      })
-      .catch(() => {
-        startCountdown();
-      });
-  }, [startCountdown]);
-
-  const startExam = useCallback(() => {
-    requestWebcam();
-  }, [requestWebcam]);
-
-  const resetExam = useCallback(() => {
-    clearTimers();
-    wsDisconnect();
-    startTimeRef.current = 0;
-    eventsRef.current = [];
-    setSessionId('');
-    setWsToken('');
-    setServerResults(null);
-    setSessionRegistered(false);
-    setState('idle');
-    setAnswers(createInitialAnswers(questions.length));
-    setCurrentQuestionIndex(0);
-    setTimeRemaining(examDurationSec);
-    setEvents([]);
-    setSubmittedAt(null);
-  }, [clearTimers, wsDisconnect, questions.length, examDurationSec]);
-
-  const selectAnswer = useCallback((questionIndex: number, selectedIndex: number) => {
-    setAnswers((prev) =>
-      prev.map((a, i) =>
-        i === questionIndex ? { ...a, selectedIndex: a.selectedIndex === selectedIndex ? null : selectedIndex } : a,
-      ),
-    );
-  }, []);
-
-  const goToQuestion = useCallback((index: number) => {
-    setCurrentQuestionIndex(index);
-  }, []);
-
-  const nextQuestion = useCallback(() => {
-    setCurrentQuestionIndex((prev) => Math.min(prev + 1, questions.length - 1));
-  }, [questions.length]);
-
-  const prevQuestion = useCallback(() => {
-    setCurrentQuestionIndex((prev) => Math.max(prev - 1, 0));
-  }, []);
-
-  const addEvent = useCallback((type: ProctorEventType, details?: string) => {
-    const event: ProctorEvent = { type, timestamp: Date.now(), details };
-    eventsRef.current = [...eventsRef.current, event];
-    setEvents(eventsRef.current);
-  }, []);
+  // Server-anchored countdown: changing the device clock or reloading doesn't buy time.
+  useEffect(() => {
+    if (state !== 'in_progress') return;
+    const id = setInterval(() => {
+      if (deadlineRef.current == null) return;
+      const left = Math.max(0, Math.round((deadlineRef.current - (Date.now() + clockOffsetRef.current)) / 1000));
+      setTimeRemaining(left);
+      if (left === 0) void submitRef.current();
+    }, 500);
+    return () => clearInterval(id);
+  }, [state]);
 
   useEffect(() => {
     if (state !== 'in_progress') return;
+    const retry = setInterval(() => void flush(), 10_000);
+    return () => clearInterval(retry);
+  }, [state, flush]);
 
-    const onVisibility = () => {
-      if (document.hidden) {
-        addEvent('tab_switch', 'Tab became hidden');
-        wsSendFlag('tab_switch', null, { details: 'Tab became hidden' });
-      }
-    };
+  const setAnswer = useCallback((questionId: string, value: string | null) => {
+    if (stateRef.current !== 'in_progress') return;
+    answersRef.current = { ...answersRef.current, [questionId]: value };
+    dirtyRef.current = { ...dirtyRef.current, [questionId]: value };
+    setAnswers(answersRef.current);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => void flush(), AUTOSAVE_DEBOUNCE_MS);
+  }, [flush]);
 
-    const onBlur = () => {
-      addEvent('window_blur', 'Window lost focus');
-      wsSendFlag('window_blur', null, { details: 'Window lost focus' });
-    };
-
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('blur', onBlur);
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('blur', onBlur);
-    };
-  }, [state, addEvent]);
+  const addEvent = useCallback((type: ProctorEventType, details: string) => {
+    setEvents((prev) => [...prev, { type, timestamp: Date.now(), details }]);
+    sendFlag(type, null, { details });
+  }, [sendFlag]);
 
   useEffect(() => {
-    return () => {
-      clearTimers();
-      wsDisconnect();
-    };
-  }, [clearTimers, wsDisconnect]);
+    if (kickedReason) void loadResult();
+  }, [kickedReason, loadResult]);
 
-  const correctCount = 0;
-  const totalQuestions = questions.length;
-  const examScorePct = 0;
+  const questions = paper?.questions ?? [];
 
   return {
     state,
-    countdownValue,
+    paper,
+    questions,
     answers,
     currentQuestionIndex,
     timeRemaining,
     events,
-    submittedAt,
-    correctCount,
-    totalQuestions,
-    examScorePct,
-    sessionId,
-    wsToken,
-    serverResults,
-    sessionRegistered,
-    questions,
-    loadingPaper,
-    startExam,
-    resetExam,
-    selectAnswer,
-    goToQuestion,
-    nextQuestion,
-    prevQuestion,
-    addEvent,
+    result,
+    error,
+    hostWarning,
+    saveState,
+    kickedReason,
+    begin,
     submit,
-    wsTick,
+    setAnswer,
+    addEvent,
+    dismissWarning: () => setHostWarning(''),
+    goToQuestion: setCurrentQuestionIndex,
+    nextQuestion: () => setCurrentQuestionIndex((i) => Math.min(i + 1, questions.length - 1)),
+    prevQuestion: () => setCurrentQuestionIndex((i) => Math.max(i - 1, 0)),
+    wsTick: tick,
   };
 }

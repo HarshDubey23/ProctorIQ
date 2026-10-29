@@ -71,6 +71,12 @@ class Session(BaseModel):
         default=None,
         description="Benchmark — only settable server-side via WebSocket benchmark handler",
     )
+    # Live-exam fields, all server-controlled.
+    status: str = "in_progress"  # in_progress | submitted | terminated
+    marks: float | None = None
+    max_marks: float | None = None
+    manual_marks: dict[str, float] = Field(default_factory=dict)
+    pending_manual: int = 0
 
 
 class SessionCreate(BaseModel):

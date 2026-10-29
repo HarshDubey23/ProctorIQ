@@ -48,7 +48,17 @@ def _create_paper_via_api(client: TestClient) -> str:
         ],
     })
     assert resp.status_code == 201
+    global _paper_token
+    _paper_token = resp.json()["host_token"]
     return cast(str, resp.json()["id"])
+
+
+_paper_token = ""
+
+
+def _owner() -> dict[str, str]:
+    """Header proving the caller wrote the most recently created paper."""
+    return {"X-Host-Token": _paper_token}
 
 
 def _create_room_directly(
@@ -78,37 +88,38 @@ class TestRoomCreationWithNewFields:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Midterm Exam", "paper_id": paper_id})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Midterm Exam", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             room_id = data["room_id"]
-            get_resp = client.get(f"/api/rooms/{room_id}")
+            assert client.get(f"/api/rooms/{room_id}").status_code == 403
+            get_resp = client.get(f"/api/rooms/{room_id}", headers={"X-Host-Token": data["host_token"]})
             assert get_resp.json()["title"] == "Midterm Exam"
 
     def test_create_room_with_duration(self) -> None:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Timed", "paper_id": paper_id, "duration_minutes": 60})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Timed", "paper_id": paper_id, "duration_minutes": 60})
             assert resp.status_code == 201
             data = resp.json()
-            get_resp = client.get(f"/api/rooms/{data['room_id']}")
+            get_resp = client.get(f"/api/rooms/{data['room_id']}", headers={"X-Host-Token": data["host_token"]})
             assert get_resp.json()["duration_minutes"] == 60
 
     def test_create_room_with_max_participants(self) -> None:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Limited", "paper_id": paper_id, "max_participants": 2})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Limited", "paper_id": paper_id, "max_participants": 2})
             assert resp.status_code == 201
             data = resp.json()
-            get_resp = client.get(f"/api/rooms/{data['room_id']}")
+            get_resp = client.get(f"/api/rooms/{data['room_id']}", headers={"X-Host-Token": data["host_token"]})
             assert get_resp.json()["max_participants"] == 2
 
     def test_create_room_rejects_missing_paper(self) -> None:
         app = create_app()
         with TestClient(app) as client:
-            resp = client.post("/api/rooms", json={"title": "No Paper", "paper_id": "nonexistent"})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "No Paper", "paper_id": "nonexistent"})
             assert resp.status_code == 404
             assert "paper" in resp.text.lower()
 
@@ -123,17 +134,17 @@ class TestRoomCreationWithNewFields:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Token Test", "paper_id": paper_id})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Token Test", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
-            get_resp = client.get(f"/api/rooms/{data['room_id']}")
+            get_resp = client.get(f"/api/rooms/{data['room_id']}", headers={"X-Host-Token": data["host_token"]})
             assert "host_token" not in get_resp.json()
 
     def test_create_returns_host_token_and_join_url(self) -> None:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "New Room", "paper_id": paper_id})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "New Room", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             assert "host_token" in data
@@ -190,7 +201,7 @@ class TestMaxParticipantsEnforcement:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"paper_id": paper_id, "max_participants": 1})
+            resp = client.post("/api/rooms", headers=_owner(), json={"paper_id": paper_id, "max_participants": 1})
             assert resp.status_code == 201
             room_id = resp.json()["room_id"]
             store: InMemoryRoomStore = app.state.room_store
@@ -253,7 +264,7 @@ class TestHostTokenRequired:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Auth Test", "paper_id": paper_id})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Auth Test", "paper_id": paper_id})
             assert resp.status_code == 201
             room_id = resp.json()["room_id"]
             close_resp = client.post(f"/api/rooms/{room_id}/close")
@@ -263,7 +274,7 @@ class TestHostTokenRequired:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Auth Test 2", "paper_id": paper_id})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Auth Test 2", "paper_id": paper_id})
             assert resp.status_code == 201
             room_id = resp.json()["room_id"]
             close_resp = client.post(
@@ -276,7 +287,7 @@ class TestHostTokenRequired:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Auth Test 3", "paper_id": paper_id})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Auth Test 3", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             room_id = data["room_id"]
@@ -294,7 +305,7 @@ class TestReportsHostToken:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Reports Auth", "paper_id": paper_id})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Reports Auth", "paper_id": paper_id})
             assert resp.status_code == 201
             room_id = resp.json()["room_id"]
             reports_resp = client.get(f"/api/rooms/{room_id}/reports")
@@ -304,7 +315,7 @@ class TestReportsHostToken:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Reports Auth 2", "paper_id": paper_id})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Reports Auth 2", "paper_id": paper_id})
             assert resp.status_code == 201
             room_id = resp.json()["room_id"]
             reports_resp = client.get(
@@ -317,7 +328,7 @@ class TestReportsHostToken:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Reports Good", "paper_id": paper_id})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Reports Good", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             room_id = data["room_id"]
@@ -330,6 +341,11 @@ class TestReportsHostToken:
             result = reports_resp.json()
             assert result["room_id"] == room_id
             assert "reports" in result
+
+
+def _app_with(store: InMemoryRoomStore) -> object:
+    from types import SimpleNamespace
+    return SimpleNamespace(state=SimpleNamespace(room_store=store))
 
 
 class TestDurationAutoClose:
@@ -347,7 +363,7 @@ class TestDurationAutoClose:
         ))
         room = await store.create_room(title="Expiring", paper_id="test-paper-dur-1", duration_minutes=0)
         assert room.status == "open"
-        await _close_expired_rooms(store)
+        await _close_expired_rooms(_app_with(store))
         updated = await store.get_room(room.room_id)
         assert updated is not None
         assert updated.status == "closed"
@@ -365,7 +381,7 @@ class TestDurationAutoClose:
             questions=[],
         ))
         room = await store.create_room(title="Active", paper_id="test-paper-dur-2", duration_minutes=60)
-        await _close_expired_rooms(store)
+        await _close_expired_rooms(_app_with(store))
         updated = await store.get_room(room.room_id)
         assert updated is not None
         assert updated.status == "open"
@@ -376,7 +392,7 @@ class TestCombinedReportEndpoint:
         app = create_app()
         with TestClient(app) as client:
             paper_id = _create_paper_via_api(client)
-            resp = client.post("/api/rooms", json={"title": "Zip Test", "paper_id": paper_id})
+            resp = client.post("/api/rooms", headers=_owner(), json={"title": "Zip Test", "paper_id": paper_id})
             assert resp.status_code == 201
             data = resp.json()
             room_id = data["room_id"]
