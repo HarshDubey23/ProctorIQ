@@ -58,12 +58,12 @@ Render free tier spins down after about 15 minutes idle and can take roughly 30-
 
 ## 3. Deploy the frontend
 
-Vercel:
+Render static site (live at https://proctoriq-exam.onrender.com):
 
-- New Project -> import repo
-- Root directory: `frontend`
-- Build command: `npm run build`
-- Output directory: `dist`
+- New -> Static Site -> connect `HarshDubey23/ProctorIQ`
+- Build command: `npm ci --prefix frontend && npm run build --prefix frontend`
+- Publish directory: `frontend/dist`
+- Redirects/Rewrites: source `/*`, destination `/index.html`, action **Rewrite** (exam links like `/join/ABC123` need it)
 
 Environment variables:
 
@@ -72,7 +72,7 @@ VITE_API_URL=https://<your-backend>.onrender.com
 VITE_WS_URL=wss://<your-backend>.onrender.com
 ```
 
-`vercel.json` already has the SPA rewrite rule. After the first frontend deploy, set Render's `CORS_ORIGINS` to the real Vercel URL and redeploy the backend once more.
+Vercel works too: `vercel.json` already has the SPA rewrite rule. After the first frontend deploy, add its URL to the backend's `CORS_ORIGINS` and redeploy the backend once more.
 
 ## 4. Smoke test
 
