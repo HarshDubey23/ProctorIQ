@@ -252,12 +252,12 @@ Starts:
    - Set build command: `pip install -r backend/requirements.txt`
    - Set start command: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --workers 1`
    - Set environment variables from `.env.example` — especially `REPORT_SIGNING_SECRET` to a real random value
-   - Set `CORS_ORIGINS` to `["https://proctoriq.vercel.app"]`
+   - Set `CORS_ORIGINS` to `["https://proctoriq-exam.onrender.com"]`
 
 2. **Frontend** (Vercel):
    - Import the `frontend/` directory as a new project
    - Framework preset: Vite
    - Environment variable: `VITE_API_URL=https://your-backend-url.com`
-   - The existing `vercel.json` handles SPA routing
+   - On Render, add a Rewrite rule `/*` → `/index.html` (Static Site → Redirects/Rewrites); `vercel.json` covers Vercel
 
 3. **HTTPS**: Both Vercel and Render/Railway provide automatic HTTPS. This is not optional — browsers block `getUserMedia()` camera access on non-localhost HTTP origins.

@@ -12,7 +12,7 @@ doesn't produce a valid report.
 
 ## Try it
 
-**Live (frontend only):** https://proctoriq-exam.vercel.app → **Self-Test**. Allow the camera;
+**Live (frontend only):** https://proctoriq-exam.onrender.com → **Self-Test**. Allow the camera;
 everything runs on your device.
 Exams, paper building and signed reports need the API, which isn't hosted yet. Run it locally:
 

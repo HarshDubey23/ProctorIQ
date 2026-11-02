@@ -2,6 +2,8 @@ export const API_BASE: string = import.meta.env.VITE_API_URL ?? '';
 
 /** WebSocket origin: same host as the API, or this page's host when the API is proxied. */
 export function wsBase(): string {
+  // Static hosts can proxy /api but not WebSockets, so the socket may go straight to the API host.
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
   if (API_BASE) return API_BASE.replace(/^http/, 'ws');
   return `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
 }
